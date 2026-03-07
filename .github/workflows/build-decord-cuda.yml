@@ -149,9 +149,15 @@ jobs:
         $ffmpegInclude = "$ffmpegRoot/include"
         $ffmpegLib = "$ffmpegRoot/lib"
         
+        # 删除 vcpkg 的 FindCUDA 钩子，防止路径转义错误
+        $vcpkgFindCUDA = "C:/vcpkg/scripts/buildsystems/vcpkg/FindCUDA.cmake"
+        if (Test-Path $vcpkgFindCUDA) {
+          Write-Host "Removing vcpkg FindCUDA hook: $vcpkgFindCUDA"
+          Remove-Item $vcpkgFindCUDA -Force
+        }
+        
         # CUDA 12.4 不支持 compute_100-104 (RTX 50 系)，需要 CUDA 12.5+
         # 使用支持的架构：75, 80, 86, 89, 90
-        # 显式禁用 vcpkg 工具链，避免 FindCUDA 路径转义问题
         cmake .. `
           -G Ninja `
           -DCMAKE_C_COMPILER="$clPath" `
@@ -170,8 +176,7 @@ jobs:
           -DFFMPEG_libavutil_LIBRARY="$ffmpegLib/avutil.lib" `
           -DFFMPEG_libavfilter_LIBRARY="$ffmpegLib/avfilter.lib" `
           -DFFMPEG_libswresample_LIBRARY="$ffmpegLib/swresample.lib" `
-          -DFFMPEG_libavdevice_LIBRARY="$ffmpegLib/avdevice.lib" `
-          -DCMAKE_DISABLE_FIND_PACKAGE_vcpkg=ON
+          -DFFMPEG_libavdevice_LIBRARY="$ffmpegLib/avdevice.lib"
       shell: pwsh
     
     - name: Build Decord
