@@ -54,7 +54,9 @@ jobs:
     - name: Install FFmpeg (via vcpkg)
       run: |
         # 安装 vcpkg
-        git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+        if (!(Test-Path "C:\vcpkg")) {
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+        }
         cd C:\vcpkg
         .\bootstrap-vcpkg.bat
         
@@ -62,7 +64,14 @@ jobs:
         .\vcpkg install ffmpeg:x64-windows
         
         # 设置 FFmpeg 路径（使用正斜杠，避免转义问题）
-        $env:GITHUB_ENV | Add-Content -Value "FFMPEG_ROOT=C:/vcpkg/installed/x64-windows"
+        Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_ROOT=C:/vcpkg/installed/x64-windows"
+        Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_INCLUDE_DIR=C:/vcpkg/installed/x64-windows/include"
+        Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_LIB_DIR=C:/vcpkg/installed/x64-windows/lib"
+
+        # 基础校验，提前失败，避免后续 CMake 报迷惑错误
+        if (!(Test-Path "C:/vcpkg/installed/x64-windows/lib/avcodec.lib")) {
+          throw "FFmpeg libs not found under C:/vcpkg/installed/x64-windows/lib"
+        }
       shell: pwsh
     
     - name: Install dependencies
@@ -182,11 +191,14 @@ jobs:
         cd python/dist
         dir *.whl
         python -m pip install --force-reinstall decord*.whl
-        python -c "import decord; print(f'Decord version: {decord.__version__}'); import decord.bridge as bridge; bridge.set_bridge('torch'); print('Bridge set to torch successfully')"
+        python -c "import decord; print(f'Decord version: {decord.__version__}')"
+        python -c "import decord.bridge as bridge; bridge.set_bridge('native'); print('Bridge set to native successfully')"
+        python -c "import decord.bridge as bridge; bridge.set_bridge('numpy'); print('Bridge set to numpy successfully')"
+        python -c "import importlib.util; import decord.bridge as bridge; has_torch = importlib.util.find_spec('torch') is not None; print(f'torch installed: {has_torch}'); bridge.set_bridge('torch') if has_torch else print('skip torch bridge check (torch not installed)')"
       shell: pwsh
     
     - name: Upload wheel artifact
-      if: github.event.inputs.upload_artifact != 'false'
+      if: ${{ inputs.upload_artifact }}
       uses: actions/upload-artifact@v4
       with:
         name: decord-${{ env.DECORD_VERSION }}-cuda-${{ env.CUDA_VERSION }}-py${{ env.PYTHON_VERSION }}-win_amd64
@@ -194,7 +206,7 @@ jobs:
         retention-days: 30
     
     - name: Create release notes
-      if: github.event.inputs.upload_artifact != 'false'
+      if: ${{ inputs.upload_artifact }}
       run: |
         echo "## Decord CUDA Build Information" > release_notes.md
         echo "" >> release_notes.md
@@ -208,7 +220,7 @@ jobs:
         echo "- ✅ CUDA GPU decoding support" >> release_notes.md
         echo "- ✅ Compatible with CUDA ${{ env.CUDA_VERSION }}" >> release_notes.md
         echo "- ✅ Supports GPU architectures: 75, 80, 86, 89, 90 (RTX 20/30/40 series and H100)" >> release_notes.md
-        echo "- ✅ Torch bridge enabled" >> release_notes.md
+        echo "- ✅ Torch bridge check (only when torch is installed)" >> release_notes.md
         echo "" >> release_notes.md
         echo "## Installation" >> release_notes.md
         echo '```powershell' >> release_notes.md
