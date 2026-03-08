@@ -155,25 +155,37 @@ jobs:
         # 备份原文件
         Copy-Item $ndarrayPath $backupPath -Force
         
-        # 使用 Python 精确修复第 425 行
-        python -c """
+        # 创建 Python 修复脚本
+        $pythonScript = @'
 import re
-with open('$ndarrayPath', 'r', encoding='utf-8') as f:
+import sys
+
+ndarray_path = sys.argv[1]
+backup_path = sys.argv[2]
+
+# 读取文件
+with open(ndarray_path, 'r', encoding='utf-8') as f:
     content = f.read()
 
 # 找到 std::accumulate 调用并修复
 # 匹配：std::accumulate(..., 1, std::multiplies<int64_t>())
 # 改为：std::accumulate(..., int64_t(1), std::multiplies<int64_t>())
+pattern = r'std::accumulate\([^)]*, 1, std\.multiplies<int64_t>\(\)\)'
+
 def fix_accumulate(match):
     return match.group(0).replace(', 1,', ', int64_t(1),')
 
-content = re.sub(r'std::accumulate\([^)]*, 1, std::multiplies<int64_t>\(\)\)', fix_accumulate, content)
+new_content = re.sub(pattern, fix_accumulate, content)
 
-with open('$ndarrayPath', 'w', encoding='utf-8') as f:
-    f.write(content)
-    
+# 保存文件
+with open(ndarray_path, 'w', encoding='utf-8') as f:
+    f.write(new_content)
+
 print('Patched ndarray.h successfully')
-"""
+'@
+        
+        # 执行 Python 脚本
+        python -c $pythonScript -- $ndarrayPath $backupPath
         
         Write-Host "Patched ndarray.h to fix std::accumulate type mismatch"
       shell: pwsh
