@@ -147,23 +147,39 @@ jobs:
         # 保存修改后的文件
         $content | Out-File -FilePath $cmakeListsPath -Encoding utf8 -NoNewline
         Write-Host "Patched CMakeLists.txt to skip problematic CUDA detection"
+      shell: pwsh
+    
+    - name: Create FFmpeg library symlinks
+      run: |
+        # vcpkg 的 FFmpeg 库文件名没有 'lib' 前缀，创建符号链接
+        $ffmpegLib = "C:/vcpkg/installed/x64-windows/lib"
         
-        # 修改 FFmpeg 检测脚本，使用 vcpkg 的库文件名
-        $ffmpegCmakePath = "cmake/modules/FFmpeg.cmake"
-        $ffmpegContent = Get-Content $ffmpegCmakePath -Raw
+        Write-Host "Creating FFmpeg library symlinks in $ffmpegLib..."
         
-        # vcpkg 的 FFmpeg 库文件名没有 'lib' 前缀
-        # 将 libavformat.lib 改为 avformat.lib
-        $ffmpegContent = $ffmpegContent -replace 'libavformat\.lib', 'avformat.lib'
-        $ffmpegContent = $ffmpegContent -replace 'libavcodec\.lib', 'avcodec.lib'
-        $ffmpegContent = $ffmpegContent -replace 'libavutil\.lib', 'avutil.lib'
-        $ffmpegContent = $ffmpegContent -replace 'libavfilter\.lib', 'avfilter.lib'
-        $ffmpegContent = $ffmpegContent -replace 'libswresample\.lib', 'swresample.lib'
-        $ffmpegContent = $ffmpegContent -replace 'libavdevice\.lib', 'avdevice.lib'
+        # 创建符号链接：libavformat.lib -> avformat.lib
+        $libs = @("avformat", "avcodec", "avutil", "avfilter", "swresample", "avdevice")
+        foreach ($lib in $libs) {
+          $linkPath = Join-Path $ffmpegLib "lib${lib}.lib"
+          $targetPath = Join-Path $ffmpegLib "${lib}.lib"
+          
+          if (Test-Path $targetPath) {
+            Write-Host "Creating symlink: lib${lib}.lib -> ${lib}.lib"
+            # 使用 New-Item 创建符号链接（需要管理员权限）
+            # 如果失败，使用 copy 命令复制文件
+            try {
+              New-Item -ItemType SymbolicLink -Path $linkPath -Target $targetPath -Force
+              Write-Host "  ✓ Created symlink"
+            } catch {
+              Write-Host "  Symlink failed, copying file instead..."
+              Copy-Item $targetPath $linkPath -Force
+              Write-Host "  ✓ Copied file"
+            }
+          } else {
+            Write-Host "  Warning: $targetPath not found"
+          }
+        }
         
-        # 保存修改后的 FFmpeg.cmake
-        $ffmpegContent | Out-File -FilePath $ffmpegCmakePath -Encoding utf8 -NoNewline
-        Write-Host "Patched FFmpeg.cmake to use vcpkg library names"
+        Write-Host "FFmpeg library symlinks created!"
       shell: pwsh
     
     - name: Configure CMake with CUDA (Ninja - Manual Config)
