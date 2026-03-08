@@ -155,37 +155,8 @@ jobs:
         # 备份原文件
         Copy-Item $ndarrayPath $backupPath -Force
         
-        # 创建 Python 修复脚本文件
-        $scriptPath = "patch_ndarray.py"
-        Set-Content -Path $scriptPath -Value @"
-import re
-import sys
-
-ndarray_path = sys.argv[1]
-
-# 读取文件
-with open(ndarray_path, 'r', encoding='utf-8') as f:
-    content = f.read()
-
-# 找到 std::accumulate 调用并修复
-# 匹配：std::accumulate(..., 1, std::multiplies<int64_t>())
-# 改为：std::accumulate(..., int64_t(1), std::multiplies<int64_t>())
-pattern = r'std::accumulate\([^)]*, 1, std\.multiplies<int64_t>\(\)\)'
-
-def fix_accumulate(match):
-    return match.group(0).replace(', 1,', ', int64_t(1),')
-
-new_content = re.sub(pattern, fix_accumulate, content)
-
-# 保存文件
-with open(ndarray_path, 'w', encoding='utf-8') as f:
-    f.write(new_content)
-
-print('Patched ndarray.h successfully')
-"@
-        
-        # 执行 Python 脚本
-        python $scriptPath $ndarrayPath
+        # 直接使用 Python 一行命令修复
+        python -c "import re, sys; ndarray_path = sys.argv[1]; with open(ndarray_path, 'r', encoding='utf-8') as f: content = f.read(); pattern = r'std::accumulate\([^)]*, 1, std\.multiplies<int64_t>\(\)\)'; def fix_accumulate(match): return match.group(0).replace(', 1,', ', int64_t(1),'); new_content = re.sub(pattern, fix_accumulate, content); with open(ndarray_path, 'w', encoding='utf-8') as f: f.write(new_content); print('Patched ndarray.h successfully')" -- $ndarrayPath
         
         Write-Host "Patched ndarray.h to fix std::accumulate type mismatch"
       shell: pwsh
