@@ -173,6 +173,8 @@ jobs:
           -DCUDA_TOOLKIT_ROOT_DIR="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" `
           -DCUDA_NVCC_EXECUTABLE="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
           -DCUDA_CUDA_COMPILER="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
+          -DCUDA_FOUND=TRUE `
+          -DCUDA_VERSION="12.4" `
           -DFFMPEG_DIR="$ffmpegRoot" `
           -DFFMPEG_INCLUDE_DIR="$ffmpegInclude" `
           -DFFMPEG_LIB_DIR="$ffmpegLib" `
