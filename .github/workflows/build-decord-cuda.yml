@@ -147,6 +147,18 @@ jobs:
         # 保存修改后的文件
         $content | Out-File -FilePath $cmakeListsPath -Encoding utf8 -NoNewline
         Write-Host "Patched CMakeLists.txt to skip problematic CUDA detection"
+        
+        # 修复 ndarray.h 中的 std::accumulate 类型错误
+        $ndarrayPath = "include/decord/runtime/ndarray.h"
+        $ndarrayContent = Get-Content $ndarrayPath -Raw
+        
+        # 将 std::accumulate 的初始值从 1 改为 1LL（long long），确保类型匹配
+        # 查找 ShapeStorage 函数中的 accumulate 调用
+        $ndarrayContent = $ndarrayContent -replace 'std::accumulate\(data\.begin\(\), data\.end\(\), 1, std::multiplies<int64_t>\(\)\)', 'std::accumulate(data.begin(), data.end(), int64_t(1), std::multiplies<int64_t>())'
+        
+        # 保存修改后的文件
+        $ndarrayContent | Out-File -FilePath $ndarrayPath -Encoding utf8 -NoNewline
+        Write-Host "Patched ndarray.h to fix std::accumulate type mismatch"
       shell: pwsh
     
     - name: Create FFmpeg library symlinks
