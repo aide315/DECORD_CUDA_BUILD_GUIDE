@@ -135,6 +135,20 @@ jobs:
         echo "CUDA_HOME=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       shell: pwsh
     
+    - name: Patch Decord CMakeLists.txt
+      run: |
+        # 直接修改 Decord 的 CMakeLists.txt，跳过有问题的 CUDA 检测
+        $cmakeListsPath = "CMakeLists.txt"
+        $content = Get-Content $cmakeListsPath -Raw
+        
+        # 注释掉有问题的 CUDA 检测行
+        $content = $content -replace 'include\(cmake/modules/CUDA\.cmake\)', '# include(cmake/modules/CUDA.cmake) # Disabled for manual CUDA config'
+        
+        # 保存修改后的文件
+        $content | Out-File -FilePath $cmakeListsPath -Encoding utf8 -NoNewline
+        Write-Host "Patched CMakeLists.txt to skip problematic CUDA detection"
+      shell: pwsh
+    
     - name: Configure CMake with CUDA (Ninja - Manual Config)
       run: |
         mkdir build
