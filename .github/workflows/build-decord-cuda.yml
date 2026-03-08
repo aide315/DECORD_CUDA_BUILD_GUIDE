@@ -199,7 +199,8 @@ jobs:
           -DFFMPEG_libavutil_LIBRARY="$ffmpegLib/avutil.lib" `
           -DFFMPEG_libavfilter_LIBRARY="$ffmpegLib/avfilter.lib" `
           -DFFMPEG_libswresample_LIBRARY="$ffmpegLib/swresample.lib" `
-          -DFFMPEG_libavdevice_LIBRARY="$ffmpegLib/avdevice.lib"
+          -DFFMPEG_libavdevice_LIBRARY="$ffmpegLib/avdevice.lib" `
+          -DCMAKE_PREFIX_PATH="$ffmpegRoot;$env:CUDA_PATH"
       shell: pwsh
     
     - name: Build Decord (Ninja)
