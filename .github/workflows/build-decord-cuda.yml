@@ -161,12 +161,6 @@ jobs:
         $ffmpegInclude = "$ffmpegRoot/include"
         $ffmpegLib = "$ffmpegRoot/lib"
         
-        # 检查 FFmpeg 库文件的实际名称
-        Write-Host "Checking FFmpeg library files in $ffmpegLib..."
-        Get-ChildItem -Path $ffmpegLib -Filter "*.lib" | Where-Object { $_.Name -match "av" } | ForEach-Object {
-          Write-Host "  Found: $($_.Name)"
-        }
-        
         # 删除 vcpkg 的 FindCUDA 钩子和 CMake 自带的 FindCUDA，防止路径转义错误
         $vcpkgFindCUDA = "C:/vcpkg/scripts/buildsystems/vcpkg/FindCUDA.cmake"
         if (Test-Path $vcpkgFindCUDA) {
@@ -197,16 +191,8 @@ jobs:
           -DCUDA_CUDA_COMPILER="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
           -DCUDA_FOUND=TRUE `
           -DCUDA_VERSION="12.4" `
-          -DFFMPEG_DIR="$ffmpegRoot" `
-          -DFFMPEG_INCLUDE_DIR="$ffmpegInclude" `
-          -DFFMPEG_LIB_DIR="$ffmpegLib" `
-          -DFFMPEG_libavformat_LIBRARY="$ffmpegLib/avformat.lib" `
-          -DFFMPEG_libavcodec_LIBRARY="$ffmpegLib/avcodec.lib" `
-          -DFFMPEG_libavutil_LIBRARY="$ffmpegLib/avutil.lib" `
-          -DFFMPEG_libavfilter_LIBRARY="$ffmpegLib/avfilter.lib" `
-          -DFFMPEG_libswresample_LIBRARY="$ffmpegLib/swresample.lib" `
-          -DFFMPEG_libavdevice_LIBRARY="$ffmpegLib/avdevice.lib" `
-          -DCMAKE_PREFIX_PATH="$ffmpegRoot;$env:CUDA_PATH"
+          -DCMAKE_PREFIX_PATH="$ffmpegRoot;$env:CUDA_PATH" `
+          -DFFMPEG_DIR="$ffmpegRoot"
       shell: pwsh
     
     - name: Build Decord (Ninja)
