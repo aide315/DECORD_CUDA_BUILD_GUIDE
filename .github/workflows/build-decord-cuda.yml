@@ -161,6 +161,12 @@ jobs:
         $ffmpegInclude = "$ffmpegRoot/include"
         $ffmpegLib = "$ffmpegRoot/lib"
         
+        # 检查 FFmpeg 库文件的实际名称
+        Write-Host "Checking FFmpeg library files in $ffmpegLib..."
+        Get-ChildItem -Path $ffmpegLib -Filter "*.lib" | Where-Object { $_.Name -match "av" } | ForEach-Object {
+          Write-Host "  Found: $($_.Name)"
+        }
+        
         # 删除 vcpkg 的 FindCUDA 钩子和 CMake 自带的 FindCUDA，防止路径转义错误
         $vcpkgFindCUDA = "C:/vcpkg/scripts/buildsystems/vcpkg/FindCUDA.cmake"
         if (Test-Path $vcpkgFindCUDA) {
