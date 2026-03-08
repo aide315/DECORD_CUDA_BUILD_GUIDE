@@ -155,13 +155,13 @@ jobs:
         # 备份原文件
         Copy-Item $ndarrayPath $backupPath -Force
         
-        # 创建 Python 修复脚本
-        $pythonScript = @'
+        # 创建 Python 修复脚本文件
+        $scriptPath = "patch_ndarray.py"
+        Set-Content -Path $scriptPath -Value @"
 import re
 import sys
 
 ndarray_path = sys.argv[1]
-backup_path = sys.argv[2]
 
 # 读取文件
 with open(ndarray_path, 'r', encoding='utf-8') as f:
@@ -182,10 +182,10 @@ with open(ndarray_path, 'w', encoding='utf-8') as f:
     f.write(new_content)
 
 print('Patched ndarray.h successfully')
-'@
+"@
         
         # 执行 Python 脚本
-        python -c $pythonScript -- $ndarrayPath $backupPath
+        python $scriptPath $ndarrayPath
         
         Write-Host "Patched ndarray.h to fix std::accumulate type mismatch"
       shell: pwsh
