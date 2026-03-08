@@ -211,6 +211,10 @@ jobs:
         # CUDA 12.4 不支持 compute_100-104 (RTX 50 系)，需要 CUDA 12.5+
         # 使用支持的架构：75, 80, 86, 89, 90
         # 手动配置 CUDA，不使用 FindCUDA 模块
+        # 添加 /bigobj 和 /permissive- 标志以解决 MSVC 兼容性问题
+        $env:CXXFLAGS = "/bigobj /permissive- /D_CRT_SECURE_NO_WARNINGS"
+        $env:CFLAGS = "/bigobj /permissive- /D_CRT_SECURE_NO_WARNINGS"
+        
         cmake .. `
           -G Ninja `
           -DUSE_CUDA=ON `
