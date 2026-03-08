@@ -135,11 +135,11 @@ jobs:
         echo "CUDA_HOME=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       shell: pwsh
     
-    - name: Configure CMake with CUDA (Visual Studio)
+    - name: Configure CMake with CUDA (Ninja - Manual Config)
       run: |
         mkdir build
         cd build
-        Write-Host "Configuring CMake with CUDA using Visual Studio generator..."
+        Write-Host "Configuring CMake with CUDA using Ninja (manual configuration)..."
         Write-Host "CUDA Path: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
         
         # 设置 FFmpeg 路径（使用正斜杠）
@@ -147,24 +147,31 @@ jobs:
         $ffmpegInclude = "$ffmpegRoot/include"
         $ffmpegLib = "$ffmpegRoot/lib"
         
-        # 删除 vcpkg 的 FindCUDA 钩子，防止路径转义错误
+        # 删除 vcpkg 的 FindCUDA 钩子和 CMake 自带的 FindCUDA，防止路径转义错误
         $vcpkgFindCUDA = "C:/vcpkg/scripts/buildsystems/vcpkg/FindCUDA.cmake"
         if (Test-Path $vcpkgFindCUDA) {
           Write-Host "Removing vcpkg FindCUDA hook: $vcpkgFindCUDA"
           Remove-Item $vcpkgFindCUDA -Force
         }
         
+        # 重命名 CMake 自带的 FindCUDA，强制使用手动配置
+        $cmakeFindCUDA = "C:/hostedtoolcache/windows/Python/3.10.11/x64/Lib/site-packages/cmake/data/share/cmake-3.28/Modules/FindCUDA.cmake"
+        if (Test-Path $cmakeFindCUDA) {
+          Write-Host "Disabling CMake FindCUDA module: $cmakeFindCUDA"
+          Rename-Item $cmakeFindCUDA "FindCUDA.cmake.bak" -Force
+        }
+        
         # CUDA 12.4 不支持 compute_100-104 (RTX 50 系)，需要 CUDA 12.5+
         # 使用支持的架构：75, 80, 86, 89, 90
-        # 使用 Visual Studio 生成器，正确处理 Windows 路径
+        # 手动配置 CUDA，不使用 FindCUDA 模块
         cmake .. `
-          -G "Visual Studio 17 2022" `
-          -A x64 `
-          -T CUDA `
+          -G Ninja `
           -DUSE_CUDA=ON `
           -DCUDA_ARCHITECTURES="75;80;86;89;90" `
+          -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_CUDA_ARCHITECTURES="75;80;86;89;90" `
           -DCUDA_TOOLKIT_ROOT_DIR="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" `
+          -DCUDA_CUDA_COMPILER="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
           -DFFMPEG_DIR="$ffmpegRoot" `
           -DFFMPEG_INCLUDE_DIR="$ffmpegInclude" `
           -DFFMPEG_LIB_DIR="$ffmpegLib" `
@@ -174,12 +181,6 @@ jobs:
           -DFFMPEG_libavfilter_LIBRARY="$ffmpegLib/avfilter.lib" `
           -DFFMPEG_libswresample_LIBRARY="$ffmpegLib/swresample.lib" `
           -DFFMPEG_libavdevice_LIBRARY="$ffmpegLib/avdevice.lib"
-      shell: pwsh
-    
-    - name: Build Decord (Release)
-      run: |
-        cd build
-        cmake --build . --config Release -- /m:8
       shell: pwsh
     
 
