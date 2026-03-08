@@ -202,7 +202,28 @@ jobs:
           -DFFMPEG_libavdevice_LIBRARY="$ffmpegLib/avdevice.lib"
       shell: pwsh
     
-
+    - name: Build Decord (Ninja)
+      run: |
+        cd build
+        Write-Host "Building Decord with Ninja..."
+        ninja -j8
+        Write-Host "Build completed!"
+        # 检查生成的 DLL 文件
+        Write-Host "Checking generated DLL files..."
+        Get-ChildItem -Path . -Filter "*.dll" -Recurse | ForEach-Object {
+          Write-Host "Found: $($_.FullName)"
+        }
+        # 复制 DLL 到 python 目录
+        $dllPath = Get-ChildItem -Path . -Filter "decord.dll" -Recurse | Select-Object -First 1
+        if ($dllPath) {
+          Write-Host "Copying decord.dll to python/decord directory..."
+          Copy-Item $dllPath.FullName -Destination "../python/decord/" -Force
+          Write-Host "Copy completed!"
+        } else {
+          Write-Host "Error: decord.dll not found!"
+          exit 1
+        }
+      shell: pwsh
     
     - name: Build Python wheel
       run: |
