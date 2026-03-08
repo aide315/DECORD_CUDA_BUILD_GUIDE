@@ -150,20 +150,31 @@ jobs:
         
         # 修复 ndarray.h 中的 std::accumulate 类型错误
         $ndarrayPath = "include/decord/runtime/ndarray.h"
-        $lines = Get-Content $ndarrayPath
+        $backupPath = "include/decord/runtime/ndarray.h.bak"
         
-        # 遍历所有行，找到第 425 行附近的 std::accumulate 调用
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match 'std::accumulate.*1.*std\.multiplies<int64_t>') {
-                Write-Host "Found std::accumulate at line $($i+1): $($lines[$i])"
-                # 将 1 替换为 int64_t(1)
-                $lines[$i] = $lines[$i] -replace '\b1\b', 'int64_t(1)'
-                Write-Host "Patched to: $($lines[$i])"
-            }
-        }
+        # 备份原文件
+        Copy-Item $ndarrayPath $backupPath -Force
         
-        # 保存修改后的文件
-        $lines | Set-Content $ndarrayPath -Encoding utf8 -NoNewline
+        # 使用 Python 精确修复第 425 行
+        python -c """
+import re
+with open('$ndarrayPath', 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# 找到 std::accumulate 调用并修复
+# 匹配：std::accumulate(..., 1, std::multiplies<int64_t>())
+# 改为：std::accumulate(..., int64_t(1), std::multiplies<int64_t>())
+def fix_accumulate(match):
+    return match.group(0).replace(', 1,', ', int64_t(1),')
+
+content = re.sub(r'std::accumulate\([^)]*, 1, std::multiplies<int64_t>\(\)\)', fix_accumulate, content)
+
+with open('$ndarrayPath', 'w', encoding='utf-8') as f:
+    f.write(content)
+    
+print('Patched ndarray.h successfully')
+"""
+        
         Write-Host "Patched ndarray.h to fix std::accumulate type mismatch"
       shell: pwsh
     
