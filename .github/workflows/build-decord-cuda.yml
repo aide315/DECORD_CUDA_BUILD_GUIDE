@@ -152,9 +152,13 @@ jobs:
         $ndarrayPath = "include/decord/runtime/ndarray.h"
         $ndarrayContent = Get-Content $ndarrayPath -Raw
         
-        # 将 std::accumulate 的初始值从 1 改为 1LL（long long），确保类型匹配
-        # 查找 ShapeStorage 函数中的 accumulate 调用
-        $ndarrayContent = $ndarrayContent -replace 'std::accumulate\(data\.begin\(\), data\.end\(\), 1, std::multiplies<int64_t>\(\)\)', 'std::accumulate(data.begin(), data.end(), int64_t(1), std::multiplies<int64_t>())'
+        # 修复所有 std::accumulate 调用，确保初始值类型正确
+        # 匹配形如：std::accumulate(data.begin(), data.end(), 1, std::multiplies<int64_t>())
+        # 改为：std::accumulate(data.begin(), data.end(), int64_t(1), std::multiplies<int64_t>())
+        $ndarrayContent = $ndarrayContent -replace 'std::accumulate\(([^,]+), ([^,]+), (1), (std::multiplies<int64_t>\(\))\)', 'std::accumulate($1, $2, int64_t($3), $4)'
+        
+        # 也修复可能的其他形式
+        $ndarrayContent = $ndarrayContent -replace 'std::accumulate\(([^,]+), ([^,]+), (1), (std::multiplies<DLDataType>\(\))\)', 'std::accumulate($1, $2, DLDataType($3), $4)'
         
         # 保存修改后的文件
         $ndarrayContent | Out-File -FilePath $ndarrayPath -Encoding utf8 -NoNewline
