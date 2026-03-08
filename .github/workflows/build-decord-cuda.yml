@@ -142,10 +142,6 @@ jobs:
         Write-Host "Configuring CMake with CUDA using Ninja..."
         Write-Host "CUDA Path: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
         
-        # 获取 cl.exe 的完整路径
-        $clPath = (Get-Command cl.exe).Source
-        Write-Host "Using C/C++ compiler: $clPath"
-        
         # 设置 FFmpeg 路径（使用正斜杠）
         $ffmpegRoot = "C:/vcpkg/installed/x64-windows"
         $ffmpegInclude = "$ffmpegRoot/include"
@@ -160,16 +156,15 @@ jobs:
         
         # CUDA 12.4 不支持 compute_100-104 (RTX 50 系)，需要 CUDA 12.5+
         # 使用支持的架构：75, 80, 86, 89, 90
+        # 不手动指定编译器路径，让 CMake 自动检测（避免反斜杠转义问题）
         cmake .. `
           -G Ninja `
-          -DCMAKE_C_COMPILER="$clPath" `
-          -DCMAKE_CXX_COMPILER="$clPath" `
-          -DCMAKE_CUDA_COMPILER="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
           -DUSE_CUDA=ON `
           -DCUDA_ARCHITECTURES="75;80;86;89;90" `
           -DCMAKE_BUILD_TYPE=Release `
           -DCMAKE_CUDA_ARCHITECTURES="75;80;86;89;90" `
           -DCUDA_TOOLKIT_ROOT_DIR="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" `
+          -DCUDA_CUDA_COMPILER="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
           -DFFMPEG_DIR="$ffmpegRoot" `
           -DFFMPEG_INCLUDE_DIR="$ffmpegInclude" `
           -DFFMPEG_LIB_DIR="$ffmpegLib" `
