@@ -65,10 +65,22 @@ jobs:
         C:\vcpkg\bootstrap-vcpkg.bat
       shell: cmd
 
-    - name: Install FFmpeg
+    - name: Install FFmpeg (older version for compatibility)
       run: |
-        C:\vcpkg\vcpkg install ffmpeg:x64-windows
+        C:\vcpkg\vcpkg install ffmpeg[avcodec,avformat,avutil,swresample]:x64-windows --overlay-ports=ports/ffmpeg
       shell: cmd
+
+    - name: Patch audio_reader.cc for FFmpeg compatibility
+      run: |
+        # Patch audio_reader.cc to fix FFmpeg API changes
+        $audioFile = "decord\src\audio\audio_reader.cc"
+        if (Test-Path $audioFile) {
+            $content = Get-Content $audioFile -Raw
+            # Comment out or fix problematic FFmpeg API calls
+            $content = $content -replace '#include <libavutil/channel_layout.h>', '// #include <libavutil/channel_layout.h>'
+            $content | Set-Content $audioFile -Encoding utf8
+            Write-Host "Patched audio_reader.cc"
+        }
 
     - name: Create FFmpeg symlinks
       run: |
