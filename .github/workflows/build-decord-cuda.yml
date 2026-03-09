@@ -1,10 +1,10 @@
-name: Build Decord with CUDA Support (Windows Only)
+name: Download Pre-built Decord with CUDA Support (Windows Only)
 
 on:
   workflow_dispatch:
     inputs:
       decord_version:
-        description: 'Decord version to build'
+        description: 'Decord version to use'
         required: true
         default: '0.6.0'
       cuda_version:
@@ -27,277 +27,76 @@ env:
   PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.10' }}
 
 jobs:
-  build-windows-cuda:
+  download-decord-cuda:
     runs-on: windows-latest
     
     steps:
-    - name: Checkout Decord repository
-      uses: actions/checkout@v4
-      with:
-        repository: dmlc/decord
-        ref: v${{ env.DECORD_VERSION }}
-        submodules: recursive
-    
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
     
-    - name: Setup CUDA Toolkit
-      uses: Jimver/cuda-toolkit@v0.2.19
-      id: cuda-toolkit
-      with:
-        cuda: ${{ env.CUDA_VERSION }}
-        method: 'network'
-        sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "thrust"]'
-    
-    - name: Install FFmpeg (via vcpkg)
-      run: |
-        # 安装 vcpkg
-        if (!(Test-Path "C:\vcpkg")) {
-          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-        }
-        cd C:\vcpkg
-        .\bootstrap-vcpkg.bat
-        
-        # 安装 FFmpeg
-        .\vcpkg install ffmpeg:x64-windows
-        
-        # 设置 FFmpeg 路径（使用正斜杠，避免转义问题）
-        Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_ROOT=C:/vcpkg/installed/x64-windows"
-        Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_INCLUDE_DIR=C:/vcpkg/installed/x64-windows/include"
-        Add-Content -Path $env:GITHUB_ENV -Value "FFMPEG_LIB_DIR=C:/vcpkg/installed/x64-windows/lib"
-
-        # 基础校验，提前失败，避免后续 CMake 报迷惑错误
-        if (!(Test-Path "C:/vcpkg/installed/x64-windows/lib/avcodec.lib")) {
-          throw "FFmpeg libs not found under C:/vcpkg/installed/x64-windows/lib"
-        }
-      shell: pwsh
-    
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # 使用 CMake 3.28 版本，避免 FindCUDA.cmake 的路径转义 bug
-        python -m pip install cmake==3.28.0
-        python -m pip install numpy wheel setuptools ninja pkgconfig
         python -m pip install numpy==2.2.6
     
-    - name: Setup Visual Studio Environment
+    - name: Download pre-built Decord CUDA wheel
       run: |
-        # 获取 Visual Studio 安装路径
-        $vsPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-        Write-Host "Visual Studio Path: $vsPath"
+        Write-Host "Downloading pre-built Decord CUDA wheel..."
         
-        # 设置 VC 编译器路径
-        $vcPath = Join-Path $vsPath "VC\Tools\MSVC"
-        $msvcVersion = (Get-ChildItem $vcPath | Sort-Object Name -Descending | Select-Object -First 1).Name
-        $clPath = Join-Path $vcPath "$msvcVersion\bin\Hostx64\x64"
+        # 构建下载 URL
+        $cudaVersion = "${{ env.CUDA_VERSION }}" -replace '\.', ''
+        $pythonVersion = "${{ env.PYTHON_VERSION }}" -replace '\.', ''
         
-        # 获取 Windows SDK 路径
-        $sdkPath = Join-Path $vsPath "VC\Tools\MSVC\$msvcVersion\bin\10.0.19041.0\x64"
-        if (Test-Path $sdkPath) {
-          Write-Host "Windows SDK Path: $sdkPath"
-          echo "$sdkPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        }
+        # 使用 lelechen63/decord-cuda-fix 仓库的预构建轮包
+        $wheelUrl = "https://github.com/lelechen63/decord-cuda-fix/releases/download/v${{ env.DECORD_VERSION }}/decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
         
-        # 使用 vcvarsall.bat 设置完整环境
-        $vcvarsallPath = Join-Path $vsPath "VC\Auxiliary\Build\vcvarsall.bat"
-        if (Test-Path $vcvarsallPath) {
-          Write-Host "Found vcvarsall.bat: $vcvarsallPath"
-          # 运行 vcvarsall.bat 并捕获环境变量
-          cmd /c "call `"$vcvarsallPath`" x64 && set" | ForEach-Object {
-            if ($_ -match "^(.*?)=(.*)$") {
-              $name = $matches[1]
-              $value = $matches[2]
-              if ($name -match "^(PATH|INCLUDE|LIB|LIBPATH)$") {
-                Write-Host "Setting $name = $value"
-                echo "$name=$value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-              }
-            }
-          }
-        }
+        Write-Host "Download URL: $wheelUrl"
         
-        # 添加到 PATH
-        Write-Host "Adding VC compiler to PATH: $clPath"
-        echo "$clPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        # 创建下载目录
+        New-Item -ItemType Directory -Path "python/dist" -Force
         
-        # 设置环境变量
-        echo "VCINSTALLDIR=$vsPath\VC" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      shell: pwsh
-    
-    - name: Add CUDA to PATH
-      run: |
-        $cudaPath = "${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
-        $cudaBin = Join-Path $cudaPath "bin"
-        Write-Host "Adding CUDA to PATH: $cudaBin"
-        echo "$cudaBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        echo "CUDA_PATH=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "CUDA_HOME=$cudaPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      shell: pwsh
-    
-    - name: Patch Decord CMakeLists.txt
-      run: |
-        # 直接修改 Decord 的 CMakeLists.txt，跳过有问题的 CUDA 检测
-        $cmakeListsPath = "CMakeLists.txt"
-        $content = Get-Content $cmakeListsPath -Raw
-        
-        # 注释掉有问题的 CUDA 检测行
-        $content = $content -replace 'include\(cmake/modules/CUDA\.cmake\)', '# include(cmake/modules/CUDA.cmake) # Disabled for manual CUDA config'
-        
-        # 保存修改后的文件
-        $content | Out-File -FilePath $cmakeListsPath -Encoding utf8 -NoNewline
-        Write-Host "Patched CMakeLists.txt to skip problematic CUDA detection"
-        
-        # 修复 ndarray.h 中的 std::accumulate 类型错误
-        $ndarrayPath = "include/decord/runtime/ndarray.h"
-        $backupPath = "include/decord/runtime/ndarray.h.bak"
-        
-        # 备份原文件
-        Copy-Item $ndarrayPath $backupPath -Force
-        
-        # 下载修复好的 ndarray.h 文件
+        # 下载轮包
         try {
-            $url = "https://raw.githubusercontent.com/lelechen63/decord-cuda-fix/main/include/decord/runtime/ndarray.h"
-            Invoke-WebRequest -Uri $url -OutFile $ndarrayPath -UseBasicParsing
-            Write-Host "Downloaded patched ndarray.h from lelechen63/decord-cuda-fix"
+            Invoke-WebRequest -Uri $wheelUrl -OutFile "python/dist/decord-cuda-${{ env.DECORD_VERSION }}.whl" -UseBasicParsing
+            Write-Host "Download completed successfully!"
         } catch {
-            Write-Host "Download failed, using manual fix..."
-            # 手动修复：读取文件并逐行处理
-            $lines = Get-Content $backupPath
-            for ($i = 0; $i -lt $lines.Count; $i++) {
-                if ($lines[$i] -match 'std::accumulate.*1.*std\.multiplies<int64_t>') {
-                    Write-Host "Found at line $($i+1): $($lines[$i])"
-                    $lines[$i] = $lines[$i] -replace ',\s*1\s*,', ', int64_t(1),'
-                    Write-Host "Patched to: $($lines[$i])"
-                }
-            }
-            $lines | Set-Content $ndarrayPath -Encoding utf8 -NoNewline
-        }
-        
-        Write-Host "Patched ndarray.h to fix std::accumulate type mismatch"
-      shell: pwsh
-    
-    - name: Create FFmpeg library symlinks
-      run: |
-        # vcpkg 的 FFmpeg 库文件名没有 'lib' 前缀，创建符号链接
-        $ffmpegLib = "C:/vcpkg/installed/x64-windows/lib"
-        
-        Write-Host "Creating FFmpeg library symlinks in $ffmpegLib..."
-        
-        # 创建符号链接：libavformat.lib -> avformat.lib
-        $libs = @("avformat", "avcodec", "avutil", "avfilter", "swresample", "avdevice")
-        foreach ($lib in $libs) {
-          $linkPath = Join-Path $ffmpegLib "lib${lib}.lib"
-          $targetPath = Join-Path $ffmpegLib "${lib}.lib"
-          
-          if (Test-Path $targetPath) {
-            Write-Host "Creating symlink: lib${lib}.lib -> ${lib}.lib"
-            # 使用 New-Item 创建符号链接（需要管理员权限）
-            # 如果失败，使用 copy 命令复制文件
+            Write-Host "Download failed, trying alternative source..."
+            # 尝试从其他源下载
+            $alternativeUrl = "https://github.com/ubiqusai/decord/releases/download/v${{ env.DECORD_VERSION }}/decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
+            Write-Host "Alternative URL: $alternativeUrl"
             try {
-              New-Item -ItemType SymbolicLink -Path $linkPath -Target $targetPath -Force
-              Write-Host "  ✓ Created symlink"
+                Invoke-WebRequest -Uri $alternativeUrl -OutFile "python/dist/decord-cuda-${{ env.DECORD_VERSION }}.whl" -UseBasicParsing
+                Write-Host "Alternative download completed successfully!"
             } catch {
-              Write-Host "  Symlink failed, copying file instead..."
-              Copy-Item $targetPath $linkPath -Force
-              Write-Host "  ✓ Copied file"
+                Write-Host "Error: All download sources failed!"
+                exit 1
             }
-          } else {
-            Write-Host "  Warning: $targetPath not found"
-          }
         }
         
-        Write-Host "FFmpeg library symlinks created!"
-      shell: pwsh
-    
-    - name: Configure CMake with CUDA (Ninja - Manual Config)
-      run: |
-        mkdir build
-        cd build
-        Write-Host "Configuring CMake with CUDA using Ninja (manual configuration)..."
-        Write-Host "CUDA Path: ${{ steps.cuda-toolkit.outputs.CUDA_PATH }}"
-        
-        # 设置 FFmpeg 路径（使用正斜杠）
-        $ffmpegRoot = "C:/vcpkg/installed/x64-windows"
-        $ffmpegInclude = "$ffmpegRoot/include"
-        $ffmpegLib = "$ffmpegRoot/lib"
-        
-        # 删除 vcpkg 的 FindCUDA 钩子和 CMake 自带的 FindCUDA，防止路径转义错误
-        $vcpkgFindCUDA = "C:/vcpkg/scripts/buildsystems/vcpkg/FindCUDA.cmake"
-        if (Test-Path $vcpkgFindCUDA) {
-          Write-Host "Removing vcpkg FindCUDA hook: $vcpkgFindCUDA"
-          Remove-Item $vcpkgFindCUDA -Force
+        # 验证下载
+        Get-ChildItem -Path "python/dist" -Filter "*.whl" | ForEach-Object {
+            Write-Host "Downloaded wheel: $($_.FullName)"
         }
-        
-        # 重命名 CMake 自带的 FindCUDA，强制使用手动配置
-        $cmakeFindCUDA = "C:/hostedtoolcache/windows/Python/3.10.11/x64/Lib/site-packages/cmake/data/share/cmake-3.28/Modules/FindCUDA.cmake"
-        if (Test-Path $cmakeFindCUDA) {
-          Write-Host "Disabling CMake FindCUDA module: $cmakeFindCUDA"
-          Rename-Item $cmakeFindCUDA "FindCUDA.cmake.bak" -Force
-        }
-        
-        # CUDA 12.4 不支持 compute_100-104 (RTX 50 系)，需要 CUDA 12.5+
-        # 使用支持的架构：75, 80, 86, 89, 90
-        # 手动配置 CUDA，不使用 FindCUDA 模块
-        # 添加 /bigobj 和 /permissive- 标志以解决 MSVC 兼容性问题
-        $env:CXXFLAGS = "/bigobj /permissive- /D_CRT_SECURE_NO_WARNINGS"
-        $env:CFLAGS = "/bigobj /permissive- /D_CRT_SECURE_NO_WARNINGS"
-        
-        cmake .. `
-          -G Ninja `
-          -DUSE_CUDA=ON `
-          -DCUDA_ARCHITECTURES="75;80;86;89;90" `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DCMAKE_CUDA_ARCHITECTURES="75;80;86;89;90" `
-          -DCUDA_TOOLKIT_ROOT_DIR="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}" `
-          -DCUDA_TOOLKIT_INCLUDE_DIR="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/include" `
-          -DCUDA_TOOLKIT_LIBRARY_DIR="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/lib/x64" `
-          -DCUDA_NVCC_EXECUTABLE="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
-          -DCUDA_CUDA_COMPILER="${{ steps.cuda-toolkit.outputs.CUDA_PATH }}/bin/nvcc.exe" `
-          -DCUDA_FOUND=TRUE `
-          -DCUDA_VERSION="12.4" `
-          -DCMAKE_PREFIX_PATH="$ffmpegRoot;$env:CUDA_PATH" `
-          -DFFMPEG_DIR="$ffmpegRoot"
-      shell: pwsh
-    
-    - name: Build Decord (Ninja)
-      run: |
-        cd build
-        Write-Host "Building Decord with Ninja..."
-        ninja -j8
-        Write-Host "Build completed!"
-        # 检查生成的 DLL 文件
-        Write-Host "Checking generated DLL files..."
-        Get-ChildItem -Path . -Filter "*.dll" -Recurse | ForEach-Object {
-          Write-Host "Found: $($_.FullName)"
-        }
-        # 复制 DLL 到 python 目录
-        $dllPath = Get-ChildItem -Path . -Filter "decord.dll" -Recurse | Select-Object -First 1
-        if ($dllPath) {
-          Write-Host "Copying decord.dll to python/decord directory..."
-          Copy-Item $dllPath.FullName -Destination "../python/decord/" -Force
-          Write-Host "Copy completed!"
-        } else {
-          Write-Host "Error: decord.dll not found!"
-          exit 1
-        }
-      shell: pwsh
-    
-    - name: Build Python wheel
-      run: |
-        cd python
-        python setup.py bdist_wheel --plat-name win_amd64
       shell: pwsh
     
     - name: Verify wheel
       run: |
         cd python/dist
         dir *.whl
-        python -m pip install --force-reinstall decord*.whl
-        python -c "import decord; print(f'Decord version: {decord.__version__}')"
-        python -c "import decord.bridge as bridge; bridge.set_bridge('native'); print('Bridge set to native successfully')"
-        python -c "import decord.bridge as bridge; bridge.set_bridge('numpy'); print('Bridge set to numpy successfully')"
-        python -c "import importlib.util; import decord.bridge as bridge; has_torch = importlib.util.find_spec('torch') is not None; print(f'torch installed: {has_torch}'); bridge.set_bridge('torch') if has_torch else print('skip torch bridge check (torch not installed)')"
+        $wheelFile = Get-ChildItem -Path . -Filter "*.whl" | Select-Object -First 1
+        if ($wheelFile) {
+            Write-Host "Installing wheel: $($wheelFile.Name)"
+            python -m pip install --force-reinstall "$($wheelFile.Name)"
+            python -c "import decord; print(f'Decord version: {decord.__version__}')"
+            python -c "import decord.bridge as bridge; bridge.set_bridge('native'); print('Bridge set to native successfully')"
+            python -c "import decord.bridge as bridge; bridge.set_bridge('numpy'); print('Bridge set to numpy successfully')"
+            python -c "import importlib.util; import decord.bridge as bridge; has_torch = importlib.util.find_spec('torch') is not None; print(f'torch installed: {has_torch}'); bridge.set_bridge('torch') if has_torch else print('skip torch bridge check (torch not installed)')"
+        } else {
+            Write-Host "Error: No wheel file found!"
+            exit 1
+        }
       shell: pwsh
     
     - name: Upload wheel artifact
@@ -318,11 +117,12 @@ jobs:
         echo "- **Python Version**: ${{ env.PYTHON_VERSION }}" >> release_notes.md
         echo "- **Platform**: Windows x64" >> release_notes.md
         echo "- **Build Date**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" >> release_notes.md
+        echo "- **Source**: Pre-built wheel from lelechen63/decord-cuda-fix"
         echo "" >> release_notes.md
         echo "## Features" >> release_notes.md
         echo "- ✅ CUDA GPU decoding support" >> release_notes.md
         echo "- ✅ Compatible with CUDA ${{ env.CUDA_VERSION }}" >> release_notes.md
-        echo "- ✅ Supports GPU architectures: 75, 80, 86, 89, 90 (RTX 20/30/40 series and H100)" >> release_notes.md
+        echo "- ✅ Pre-built for Windows x64" >> release_notes.md
         echo "- ✅ Torch bridge check (only when torch is installed)" >> release_notes.md
         echo "" >> release_notes.md
         echo "## Installation" >> release_notes.md
