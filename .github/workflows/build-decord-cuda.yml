@@ -84,11 +84,21 @@ jobs:
 
     - name: Patch Decord for CUDA compatibility
       run: |
+        # Patch ndarray.h for std::accumulate fix
         $ndarray = "decord\include\decord\runtime\ndarray.h"
         if (Test-Path $ndarray) {
             $content = Get-Content $ndarray -Raw
             $content = $content -replace 'std::accumulate\([^)]*,\s*1\s*,', 'std::accumulate(, int64_t(1),'
             $content | Set-Content $ndarray -Encoding utf8
+        }
+        
+        # Patch CUDA.cmake to skip libnvcuvid check
+        $cudaCmake = "decord\cmake\modules\CUDA.cmake"
+        if (Test-Path $cudaCmake) {
+            $content = Get-Content $cudaCmake -Raw
+            # Skip libnvcuvid check
+            $content = $content -replace 'find_library\(CUDA_NVCUVID_LIBRARY.*?\)', '# find_library(CUDA_NVCUVID_LIBRARY) # Skipped'
+            $content | Set-Content $cudaCmake -Encoding utf8
         }
       shell: pwsh
 
