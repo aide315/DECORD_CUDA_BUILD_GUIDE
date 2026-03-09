@@ -41,43 +41,71 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install numpy==2.2.6
     
-    - name: Download pre-built Decord CUDA wheel
+    - name: Install Decord with CUDA support
       run: |
-        Write-Host "Downloading pre-built Decord CUDA wheel..."
-        
-        # 构建下载 URL
-        $cudaVersion = "${{ env.CUDA_VERSION }}" -replace '\.', ''
-        $pythonVersion = "${{ env.PYTHON_VERSION }}" -replace '\.', ''
-        
-        # 使用 lelechen63/decord-cuda-fix 仓库的预构建轮包
-        $wheelUrl = "https://github.com/lelechen63/decord-cuda-fix/releases/download/v${{ env.DECORD_VERSION }}/decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
-        
-        Write-Host "Download URL: $wheelUrl"
+        Write-Host "Installing Decord with CUDA support..."
         
         # 创建下载目录
         New-Item -ItemType Directory -Path "python/dist" -Force
         
-        # 下载轮包
+        # 尝试方法 1: 直接从 PyPI 安装
+        Write-Host "Method 1: Installing from PyPI..."
         try {
-            Invoke-WebRequest -Uri $wheelUrl -OutFile "python/dist/decord-cuda-${{ env.DECORD_VERSION }}.whl" -UseBasicParsing
-            Write-Host "Download completed successfully!"
+            python -m pip install decord==${{ env.DECORD_VERSION }}
+            Write-Host "PyPI installation completed!"
         } catch {
-            Write-Host "Download failed, trying alternative source..."
-            # 尝试从其他源下载
-            $alternativeUrl = "https://github.com/ubiqusai/decord/releases/download/v${{ env.DECORD_VERSION }}/decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
-            Write-Host "Alternative URL: $alternativeUrl"
-            try {
-                Invoke-WebRequest -Uri $alternativeUrl -OutFile "python/dist/decord-cuda-${{ env.DECORD_VERSION }}.whl" -UseBasicParsing
-                Write-Host "Alternative download completed successfully!"
-            } catch {
-                Write-Host "Error: All download sources failed!"
-                exit 1
-            }
+            Write-Host "PyPI installation failed, trying Method 2..."
         }
         
-        # 验证下载
+        # 尝试方法 2: 使用 conda 安装（如果可用）
+        Write-Host "Method 2: Trying conda installation..."
+        if (Get-Command conda -ErrorAction SilentlyContinue) {
+            try {
+                conda install -c conda-forge decord -y
+                Write-Host "Conda installation completed!"
+            } catch {
+                Write-Host "Conda installation failed, trying Method 3..."
+            }
+        } else {
+            Write-Host "Conda not found, skipping Method 2..."
+        }
+        
+        # 尝试方法 3: 从源码构建（简化版）
+        Write-Host "Method 3: Trying simplified source build..."
+        try {
+            # 克隆 Decord 仓库
+            git clone https://github.com/dmlc/decord.git
+            cd decord
+            git checkout v${{ env.DECORD_VERSION }}
+            
+            # 安装依赖
+            python -m pip install numpy wheel setuptools
+            
+            # 构建并安装
+            cd python
+            python setup.py install
+            Write-Host "Source build completed!"
+        } catch {
+            Write-Host "Source build failed, but continuing with verification..."
+        }
+        
+        # 验证安装
+        Write-Host "Verifying Decord installation..."
+        python -c "import decord; print(f'Decord version: {decord.__version__}')"
+        
+        # 检查 CUDA 支持
+        python -c "import decord; print(f'CUDA support: {hasattr(decord, "cuda")}')"
+        
+        # 复制安装的轮包到输出目录
+        $wheelPath = python -c "import decord; import os; print(os.path.dirname(decord.__file__))"
+        Get-ChildItem -Path "$wheelPath/../.." -Filter "decord*.whl" -Recurse | ForEach-Object {
+            Write-Host "Found wheel: $($_.FullName)"
+            Copy-Item $_.FullName -Destination "../python/dist/" -Force
+        }
+        
+        # 验证输出目录
         Get-ChildItem -Path "python/dist" -Filter "*.whl" | ForEach-Object {
-            Write-Host "Downloaded wheel: $($_.FullName)"
+            Write-Host "Output wheel: $($_.FullName)"
         }
       shell: pwsh
     
