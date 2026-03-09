@@ -155,16 +155,24 @@ jobs:
         # 备份原文件
         Copy-Item $ndarrayPath $backupPath -Force
         
-        # 使用 PowerShell 直接修复文件
-        $content = Get-Content $ndarrayPath -Raw
-        # 找到 std::accumulate 调用并修复
-        $pattern = 'std::accumulate\([^,]+, [^,]+, 1, std::multiplies<int64_t>\(\)\)'
-        $replacement = [regex]::Replace($content, $pattern, {
-            param($match)
-            return $match.Value.Replace(', 1,', ', int64_t(1),')
-        })
-        # 保存修改后的文件
-        $replacement | Set-Content $ndarrayPath -Encoding utf8 -NoNewline
+        # 下载修复好的 ndarray.h 文件
+        try {
+            $url = "https://raw.githubusercontent.com/lelechen63/decord-cuda-fix/main/include/decord/runtime/ndarray.h"
+            Invoke-WebRequest -Uri $url -OutFile $ndarrayPath -UseBasicParsing
+            Write-Host "Downloaded patched ndarray.h from lelechen63/decord-cuda-fix"
+        } catch {
+            Write-Host "Download failed, using manual fix..."
+            # 手动修复：读取文件并逐行处理
+            $lines = Get-Content $backupPath
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match 'std::accumulate.*1.*std\.multiplies<int64_t>') {
+                    Write-Host "Found at line $($i+1): $($lines[$i])"
+                    $lines[$i] = $lines[$i] -replace ',\s*1\s*,', ', int64_t(1),'
+                    Write-Host "Patched to: $($lines[$i])"
+                }
+            }
+            $lines | Set-Content $ndarrayPath -Encoding utf8 -NoNewline
+        }
         
         Write-Host "Patched ndarray.h to fix std::accumulate type mismatch"
       shell: pwsh
