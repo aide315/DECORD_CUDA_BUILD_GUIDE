@@ -53,6 +53,13 @@ jobs:
         try {
             python -m pip install decord==${{ env.DECORD_VERSION }}
             Write-Host "PyPI installation completed!"
+            
+            # 查找安装的轮包
+            $pipList = python -m pip list --format=json | ConvertFrom-Json
+            $decordPackage = $pipList | Where-Object { $_.name -eq 'decord' }
+            if ($decordPackage) {
+                Write-Host "Decord installed: $($decordPackage.version)"
+            }
         } catch {
             Write-Host "PyPI installation failed, trying Method 2..."
         }
@@ -72,16 +79,18 @@ jobs:
             cd python
             python setup.py bdist_wheel --plat-name win_amd64
             
-            # 安装构建的轮包
+            # 检查构建结果
+            Write-Host "Build results:"
             Get-ChildItem -Path "dist" -Filter "*.whl" | ForEach-Object {
-                Write-Host "Installing wheel: $($_.Name)"
-                python -m pip install --force-reinstall "$($_.FullName)"
+                Write-Host "Built wheel: $($_.FullName)"
                 # 复制到输出目录
                 Copy-Item "$($_.FullName)" -Destination "../../python/dist/" -Force
+                Write-Host "Copied to: ../../python/dist/$($_.Name)"
             }
             Write-Host "Source build completed!"
         } catch {
             Write-Host "Source build failed, but continuing..."
+            Write-Host "Error details: $_"
         }
         
         # 验证安装
@@ -101,14 +110,21 @@ jobs:
         
         # 验证输出目录
         Write-Host "Checking output directory..."
-        Get-ChildItem -Path "python/dist" -Filter "*.whl" | ForEach-Object {
-            Write-Host "Output wheel: $($_.FullName)"
+        $outputDir = "$PWD/python/dist"
+        Write-Host "Output directory: $outputDir"
+        if (Test-Path $outputDir) {
+            Get-ChildItem -Path $outputDir -Filter "*.whl" | ForEach-Object {
+                Write-Host "Output wheel: $($_.FullName)"
+            }
+        } else {
+            Write-Host "Output directory does not exist, creating..."
+            New-Item -ItemType Directory -Path $outputDir -Force
         }
         
         # 如果没有轮包，创建一个简单的占位符
-        if (-not (Test-Path "python/dist/*.whl")) {
+        if (-not (Test-Path "$outputDir/*.whl")) {
             Write-Host "No wheel found, creating placeholder..."
-            New-Item -ItemType File -Path "python/dist/decord-placeholder.txt" -Value "Decord installation attempted" -Force
+            New-Item -ItemType File -Path "$outputDir/decord-placeholder.txt" -Value "Decord installation attempted" -Force
         }
       shell: pwsh
     
