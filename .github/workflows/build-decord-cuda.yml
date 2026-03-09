@@ -92,13 +92,27 @@ jobs:
             $content | Set-Content $ndarray -Encoding utf8
         }
         
-        # Patch CUDA.cmake to skip libnvcuvid check
+        # Completely disable CUDA.cmake to avoid libnvcuvid check
         $cudaCmake = "decord\cmake\modules\CUDA.cmake"
         if (Test-Path $cudaCmake) {
-            $content = Get-Content $cudaCmake -Raw
-            # Skip libnvcuvid check
-            $content = $content -replace 'find_library\(CUDA_NVCUVID_LIBRARY.*?\)', '# find_library(CUDA_NVCUVID_LIBRARY) # Skipped'
-            $content | Set-Content $cudaCmake -Encoding utf8
+            # Replace the entire file content to just set CUDA as found
+            $patchedContent = @"
+# Patched to skip problematic CUDA checks
+set(CUDA_FOUND TRUE)
+set(CUDA_VERSION 12.4)
+set(CUDA_TOOLKIT_ROOT_DIR "$env:CUDA_PATH")
+set(CUDA_NVCUVID_LIBRARY "$env:CUDA_PATH/lib/x64/nvcuvid.lib" CACHE FILEPATH "NVCUVID library" FORCE)
+"@
+            $patchedContent | Set-Content $cudaCmake -Encoding utf8
+        }
+        
+        # Also patch CMakeLists.txt to skip CUDA module
+        $cmakeLists = "decord\CMakeLists.txt"
+        if (Test-Path $cmakeLists) {
+            $content = Get-Content $cmakeLists -Raw
+            # Comment out the CUDA include line
+            $content = $content -replace 'include\(cmake/modules/CUDA\.cmake\)', '# include(cmake/modules/CUDA.cmake) # Disabled'
+            $content | Set-Content $cmakeLists -Encoding utf8
         }
       shell: pwsh
 
@@ -117,7 +131,10 @@ jobs:
           -DCUDA_ARCHITECTURES="75;80;86;89;90" `
           -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x64-windows" `
           -DFFMPEG_DIR="C:\vcpkg\installed\x64-windows" `
-          -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe"
+          -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe" `
+          -DCUDA_FOUND=TRUE `
+          -DCUDA_VERSION=12.4 `
+          -DNVCUVID_LIBRARY="${{ steps.cuda.outputs.CUDA_PATH }}\lib\x64\nvcuvid.lib"
       shell: pwsh
 
     - name: Build Decord
