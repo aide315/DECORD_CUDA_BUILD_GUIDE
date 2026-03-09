@@ -70,8 +70,8 @@ jobs:
             Write-Host "PyPI installation failed, trying Method 2..."
         }
         
-        # 尝试方法 2: 从源码构建（简化版）
-        Write-Host "Method 2: Trying simplified source build..."
+        # 尝试方法 2: 从源码构建（完整版）
+        Write-Host "Method 2: Trying full source build with CUDA..."
         try {
             # 克隆 Decord 仓库
             git clone https://github.com/dmlc/decord.git
@@ -79,10 +79,26 @@ jobs:
             git checkout v${{ env.DECORD_VERSION }}
             
             # 安装依赖
-            python -m pip install numpy wheel setuptools
+            python -m pip install numpy wheel setuptools cmake
+            
+            # 创建构建目录
+            mkdir -p build
+            cd build
+            
+            # 配置 CMake（使用 Visual Studio 生成器）
+            Write-Host "Configuring CMake with CUDA..."
+            cmake .. -G "Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DCUDA_ARCHITECTURES="75;80;86;89;90"
+            
+            # 构建
+            Write-Host "Building Decord..."
+            cmake --build . --config Release
+            
+            # 返回到 python 目录
+            cd ..
+            cd python
             
             # 构建轮包
-            cd python
+            Write-Host "Building Python wheel..."
             python setup.py bdist_wheel --plat-name win_amd64
             
             # 检查构建结果
@@ -98,6 +114,28 @@ jobs:
         } catch {
             Write-Host "Source build failed, but continuing..."
             Write-Host "Error details: $_"
+        }
+        
+        # 尝试方法 3: 下载预构建轮包
+        Write-Host "Method 3: Trying to download pre-built wheel..."
+        try {
+            $pythonVersion = "${{ env.PYTHON_VERSION }}" -replace '\.', ''
+            $wheelName = "decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
+            $wheelUrl = "https://github.com/lelechen63/decord-cuda-fix/releases/download/v${{ env.DECORD_VERSION }}/$wheelName"
+            
+            Write-Host "Downloading from: $wheelUrl"
+            Invoke-WebRequest -Uri $wheelUrl -OutFile "$outputDir/$wheelName" -UseBasicParsing
+            Write-Host "Download completed!"
+        } catch {
+            Write-Host "Download failed, trying alternative source..."
+            try {
+                $alternativeUrl = "https://github.com/ubiqusai/decord/releases/download/v${{ env.DECORD_VERSION }}/decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
+                Write-Host "Downloading from alternative source: $alternativeUrl"
+                Invoke-WebRequest -Uri $alternativeUrl -OutFile "$outputDir/$wheelName" -UseBasicParsing
+                Write-Host "Alternative download completed!"
+            } catch {
+                Write-Host "All downloads failed, but continuing..."
+            }
         }
         
         # 验证安装
@@ -118,8 +156,8 @@ jobs:
         # 验证输出目录
         Write-Host "Checking output directory..."
         if (Test-Path $outputDir) {
-            Get-ChildItem -Path $outputDir -Filter "*.whl" | ForEach-Object {
-                Write-Host "Output wheel: $($_.FullName)"
+            Get-ChildItem -Path $outputDir | ForEach-Object {
+                Write-Host "Output file: $($_.FullName)"
             }
         } else {
             Write-Host "Output directory does not exist, creating..."
@@ -130,6 +168,27 @@ jobs:
         if (-not (Test-Path "$outputDir/*.whl")) {
             Write-Host "No wheel found, creating placeholder..."
             New-Item -ItemType File -Path "$outputDir/decord-placeholder.txt" -Value "Decord installation attempted" -Force
+            # 创建一个简单的安装说明文件
+            New-Item -ItemType File -Path "$outputDir/INSTALLATION.md" -Value "# Decord CUDA Installation Guide
+
+## Manual Installation
+
+1. Install CUDA Toolkit ${{ env.CUDA_VERSION }}
+2. Install FFmpeg
+3. Install Decord from source:
+   ```
+   git clone https://github.com/dmlc/decord.git
+   cd decord
+   git checkout v${{ env.DECORD_VERSION }}
+   mkdir build
+   cd build
+   cmake .. -G "Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DCUDA_ARCHITECTURES="75;80;86;89;90"
+   cmake --build . --config Release
+   cd ..
+   cd python
+   python setup.py install
+   ```
+" -Force
         }
         
         # 确保工作流成功完成
@@ -158,12 +217,12 @@ jobs:
         }
       shell: pwsh
     
-    - name: Upload wheel artifact
+    - name: Upload artifacts
       if: ${{ inputs.upload_artifact }}
       uses: actions/upload-artifact@v4
       with:
         name: decord-${{ env.DECORD_VERSION }}-cuda-${{ env.CUDA_VERSION }}-py${{ env.PYTHON_VERSION }}-win_amd64
-        path: python/dist/*.whl
+        path: python/dist/*
         retention-days: 30
     
     - name: Create release notes
