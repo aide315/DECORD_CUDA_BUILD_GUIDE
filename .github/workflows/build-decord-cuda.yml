@@ -238,7 +238,7 @@ jobs:
         echo "- **Python Version**: ${{ env.PYTHON_VERSION }}" >> release_notes.md
         echo "- **Platform**: Windows x64" >> release_notes.md
         echo "- **Build Date**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" >> release_notes.md
-        echo "- **Source**: Pre-built wheel from lelechen63/decord-cuda-fix"
+        echo "- **Source**: Pre-built wheel from lelechen63/decord-cuda-fix" >> release_notes.md
         echo "" >> release_notes.md
         echo "## Features" >> release_notes.md
         echo "- ✅ CUDA GPU decoding support" >> release_notes.md
