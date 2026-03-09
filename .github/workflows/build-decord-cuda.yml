@@ -69,11 +69,11 @@ jobs:
             "Decord installation attempted - ${{ env.DECORD_VERSION }}" | Out-File "$outputDir/placeholder.txt" -Encoding utf8
         }
 
-        Write-Host "Completed!"
-        exit 0
-
+        Write-Host "Creating release notes..."
         "Decord CUDA Build Information" | Out-File -FilePath release_notes.md -Encoding utf8
         "Version: ${{ env.DECORD_VERSION }}" | Out-File -FilePath release_notes.md -Encoding utf8 -Append
+
+        Write-Host "Completed!"
       shell: pwsh
 
     - name: Upload artifacts
