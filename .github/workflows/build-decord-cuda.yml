@@ -131,7 +131,7 @@ jobs:
     - name: Build Decord
       run: |
         cd decord\build
-        cmake --build . --config Release --parallel
+        cmake --build . --config Release --parallel /p:UseMultiToolTask=true /p:DisableFastUpToDateCheck=true
       shell: pwsh
 
     - name: Build Python wheel
