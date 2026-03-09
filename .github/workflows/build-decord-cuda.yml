@@ -1,16 +1,16 @@
-name: Download Pre-built Decord with CUDA Support (Windows Only)
+name: Build Decord with CUDA Support (Windows Only)
 
 on:
   workflow_dispatch:
     inputs:
       decord_version:
-        description: 'Decord version to use'
+        description: 'Decord version to build'
         required: true
         default: '0.6.0'
       cuda_version:
-        description: 'CUDA version (e.g., 11.8, 12.0, 12.4)'
+        description: 'CUDA version (e.g., 12.4)'
         required: true
-        default: '12.4.0'
+        default: '12.4'
       python_version:
         description: 'Python version'
         required: true
@@ -23,57 +23,110 @@ on:
 
 env:
   DECORD_VERSION: ${{ github.event.inputs.decord_version || '0.6.0' }}
-  CUDA_VERSION: ${{ github.event.inputs.cuda_version || '12.4.0' }}
+  CUDA_VERSION: ${{ github.event.inputs.cuda_version || '12.4' }}
   PYTHON_VERSION: ${{ github.event.inputs.python_version || '3.10' }}
 
 jobs:
-  download-decord-cuda:
+  build-decord-cuda:
     runs-on: windows-latest
 
     steps:
+    - name: Checkout Decord repository
+      uses: actions/checkout@v4
+      with:
+        repository: dmlc/decord
+        ref: v${{ env.DECORD_VERSION }}
+        submodules: recursive
+        path: decord
+
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Install dependencies
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install numpy==2.2.6
+        python -m pip install numpy==2.2.6 wheel setuptools
 
-    - name: Install Decord with CUDA support
+    - name: Setup CUDA Toolkit
+      uses: Jimver/cuda-toolkit@v0.2.19
+      id: cuda
+      with:
+        cuda: ${{ env.CUDA_VERSION }}
+        method: network
+
+    - name: Setup Visual Studio
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Install vcpkg
       run: |
-        Write-Host "Installing Decord with CUDA support..."
-        $rootDir = $PWD
-        $outputDir = "$rootDir/python/dist"
-        New-Item -ItemType Directory -Path $outputDir -Force
-        Write-Host "Output directory: $outputDir"
+        git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+        C:\vcpkg\bootstrap-vcpkg.bat
+      shell: cmd
 
-        Write-Host "Method 1: Installing from PyPI..."
-        python -m pip install decord==${{ env.DECORD_VERSION }} 2>$null
-        Write-Host "PyPI installation attempted"
+    - name: Install FFmpeg
+      run: |
+        C:\vcpkg\vcpkg install ffmpeg:x64-windows
+      shell: cmd
 
-        Write-Host "Method 2: Trying download pre-built wheel..."
-        $pythonVer = "${{ env.PYTHON_VERSION }}" -replace '\.', ''
-        $wheelName = "decord-${{ env.DECORD_VERSION }}-cp${pythonVer}-cp${pythonVer}-win_amd64.whl"
-        $wheelUrl = "https://github.com/lelechen63/decord-cuda-fix/releases/download/v${{ env.DECORD_VERSION }}/$wheelName"
-        try {
-            Invoke-WebRequest -Uri $wheelUrl -OutFile "$outputDir/$wheelName" -UseBasicParsing -ErrorAction Stop
-            Write-Host "Download completed!"
-        } catch {
-            Write-Host "Download failed: $_"
+    - name: Create FFmpeg symlinks
+      run: |
+        $libs = @("avformat", "avcodec", "avutil", "avfilter", "swresample", "avdevice")
+        foreach ($lib in $libs) {
+            $src = "C:\vcpkg\installed\x64-windows\lib\${lib}.lib"
+            $dst = "C:\vcpkg\installed\x64-windows\lib\lib${lib}.lib"
+            if ((Test-Path $src) -and (-not (Test-Path $dst))) {
+                Copy-Item $src $dst
+            }
         }
+      shell: pwsh
 
-        if (-not (Test-Path "$outputDir/*.whl")) {
-            Write-Host "Creating placeholder..."
-            "Decord installation attempted - ${{ env.DECORD_VERSION }}" | Out-File "$outputDir/placeholder.txt" -Encoding utf8
+    - name: Patch Decord for CUDA compatibility
+      run: |
+        $ndarray = "decord\include\decord\runtime\ndarray.h"
+        if (Test-Path $ndarray) {
+            $content = Get-Content $ndarray -Raw
+            $content = $content -replace 'std::accumulate\([^)]*,\s*1\s*,', 'std::accumulate(, int64_t(1),'
+            $content | Set-Content $ndarray -Encoding utf8
         }
+      shell: pwsh
 
-        Write-Host "Creating release notes..."
-        "Decord CUDA Build Information" | Out-File -FilePath release_notes.md -Encoding utf8
-        "Version: ${{ env.DECORD_VERSION }}" | Out-File -FilePath release_notes.md -Encoding utf8 -Append
+    - name: Configure CMake
+      run: |
+        $env:CUDA_PATH = "${{ steps.cuda.outputs.CUDA_PATH }}"
+        $env:CUDA_HOME = "${{ steps.cuda.outputs.CUDA_PATH }}"
+        
+        cd decord
+        mkdir build
+        cd build
+        
+        cmake .. -G "Visual Studio 17 2022" -A x64 `
+          -DCMAKE_BUILD_TYPE=Release `
+          -DUSE_CUDA=ON `
+          -DCUDA_ARCHITECTURES="75;80;86;89;90" `
+          -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x64-windows" `
+          -DFFMPEG_DIR="C:\vcpkg\installed\x64-windows" `
+          -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe"
+      shell: pwsh
 
-        Write-Host "Completed!"
+    - name: Build Decord
+      run: |
+        cd decord\build
+        cmake --build . --config Release --parallel
+      shell: pwsh
+
+    - name: Build Python wheel
+      run: |
+        cd decord\python
+        python setup.py bdist_wheel --plat-name win_amd64
+      shell: pwsh
+
+    - name: Verify wheel
+      run: |
+        Get-ChildItem decord\python\dist\*.whl
+        python -m pip install --force-reinstall "decord\python\dist\*.whl"
+        python -c "import decord; print('Decord version:', decord.__version__)"
       shell: pwsh
 
     - name: Upload artifacts
@@ -81,12 +134,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: decord-${{ env.DECORD_VERSION }}-cuda-${{ env.CUDA_VERSION }}-py${{ env.PYTHON_VERSION }}-win_amd64
-        path: python/dist/*
-        retention-days: 30
-
-    - name: Upload release notes
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-notes
-        path: release_notes.md
+        path: decord/python/dist/*.whl
         retention-days: 30
