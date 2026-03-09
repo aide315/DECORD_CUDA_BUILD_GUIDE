@@ -169,7 +169,8 @@ jobs:
             Write-Host "No wheel found, creating placeholder..."
             New-Item -ItemType File -Path "$outputDir/decord-placeholder.txt" -Value "Decord installation attempted" -Force
             # 创建一个简单的安装说明文件
-            New-Item -ItemType File -Path "$outputDir/INSTALLATION.md" -Value "# Decord CUDA Installation Guide
+            $installationGuide = @'
+# Decord CUDA Installation Guide
 
 ## Manual Installation
 
@@ -188,7 +189,8 @@ jobs:
    cd python
    python setup.py install
    ```
-" -Force
+'@
+            New-Item -ItemType File -Path "$outputDir/INSTALLATION.md" -Value $installationGuide -Force
         }
         
         # 确保工作流成功完成
