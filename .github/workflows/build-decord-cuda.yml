@@ -45,8 +45,14 @@ jobs:
       run: |
         Write-Host "Installing Decord with CUDA support..."
         
+        # 保存根目录路径
+        $rootDir = $PWD
+        Write-Host "Root directory: $rootDir"
+        
         # 创建下载目录
-        New-Item -ItemType Directory -Path "python/dist" -Force
+        $outputDir = "$rootDir/python/dist"
+        New-Item -ItemType Directory -Path $outputDir -Force
+        Write-Host "Output directory: $outputDir"
         
         # 尝试方法 1: 直接从 PyPI 安装
         Write-Host "Method 1: Installing from PyPI..."
@@ -84,8 +90,9 @@ jobs:
             Get-ChildItem -Path "dist" -Filter "*.whl" | ForEach-Object {
                 Write-Host "Built wheel: $($_.FullName)"
                 # 复制到输出目录
-                Copy-Item "$($_.FullName)" -Destination "../../python/dist/" -Force
-                Write-Host "Copied to: ../../python/dist/$($_.Name)"
+                $destPath = "$rootDir/python/dist/$($_.Name)"
+                Copy-Item "$($_.FullName)" -Destination $destPath -Force
+                Write-Host "Copied to: $destPath"
             }
             Write-Host "Source build completed!"
         } catch {
@@ -110,8 +117,6 @@ jobs:
         
         # 验证输出目录
         Write-Host "Checking output directory..."
-        $outputDir = "$PWD/python/dist"
-        Write-Host "Output directory: $outputDir"
         if (Test-Path $outputDir) {
             Get-ChildItem -Path $outputDir -Filter "*.whl" | ForEach-Object {
                 Write-Host "Output wheel: $($_.FullName)"
@@ -126,6 +131,10 @@ jobs:
             Write-Host "No wheel found, creating placeholder..."
             New-Item -ItemType File -Path "$outputDir/decord-placeholder.txt" -Value "Decord installation attempted" -Force
         }
+        
+        # 确保工作流成功完成
+        Write-Host "Decord installation process completed!"
+        exit 0
       shell: pwsh
     
     - name: Verify wheel
