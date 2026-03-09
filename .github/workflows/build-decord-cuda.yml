@@ -84,12 +84,21 @@ jobs:
 
     - name: Patch Decord for CUDA compatibility
       run: |
-        # Patch ndarray.h for std::accumulate fix
-        $ndarray = "decord\include\decord\runtime\ndarray.h"
-        if (Test-Path $ndarray) {
-            $content = Get-Content $ndarray -Raw
-            $content = $content -replace 'std::accumulate\([^)]*,\s*1\s*,', 'std::accumulate(, int64_t(1),'
-            $content | Set-Content $ndarray -Encoding utf8
+        # Patch ndarray.h for std::accumulate fix - replace line by line
+        $ndarrayPath = "decord\include\decord\runtime\ndarray.h"
+        if (Test-Path $ndarrayPath) {
+            $lines = Get-Content $ndarrayPath
+            $newLines = @()
+            foreach ($line in $lines) {
+                if ($line -match 'std::accumulate.*1,.*std::multiplies<int64_t>') {
+                    $newLine = $line -replace ',\s*1\s*,', ', int64_t(1),'
+                    $newLines += $newLine
+                    Write-Host "Patched line: $newLine"
+                } else {
+                    $newLines += $line
+                }
+            }
+            $newLines | Set-Content $ndarrayPath -Encoding utf8
         }
         
         # Remove CUDA.cmake to avoid libnvcuvid check
