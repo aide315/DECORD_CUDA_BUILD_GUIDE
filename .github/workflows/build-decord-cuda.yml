@@ -169,18 +169,19 @@ jobs:
             Write-Host "No wheel found, creating placeholder..."
             New-Item -ItemType File -Path "$outputDir/decord-placeholder.txt" -Value "Decord installation attempted" -Force
             # 创建一个简单的安装说明文件
-            $installationGuide = @'
-# Decord CUDA Installation Guide
+            $cudaVersion = "${{ env.CUDA_VERSION }}"
+            $decordVersion = "${{ env.DECORD_VERSION }}"
+            $installationGuide = '# Decord CUDA Installation Guide
 
 ## Manual Installation
 
-1. Install CUDA Toolkit ${{ env.CUDA_VERSION }}
+1. Install CUDA Toolkit $cudaVersion
 2. Install FFmpeg
 3. Install Decord from source:
    ```
    git clone https://github.com/dmlc/decord.git
    cd decord
-   git checkout v${{ env.DECORD_VERSION }}
+   git checkout v$decordVersion
    mkdir build
    cd build
    cmake .. -G "Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DCUDA_ARCHITECTURES="75;80;86;89;90"
@@ -189,7 +190,7 @@ jobs:
    cd python
    python setup.py install
    ```
-'@
+'
             New-Item -ItemType File -Path "$outputDir/INSTALLATION.md" -Value $installationGuide -Force
         }
         
