@@ -92,25 +92,16 @@ jobs:
             $content | Set-Content $ndarray -Encoding utf8
         }
         
-        # Completely disable CUDA.cmake to avoid libnvcuvid check
+        # Remove CUDA.cmake to avoid libnvcuvid check
         $cudaCmake = "decord\cmake\modules\CUDA.cmake"
         if (Test-Path $cudaCmake) {
-            # Replace the entire file content to just set CUDA as found
-            $patchedContent = @"
-# Patched to skip problematic CUDA checks
-set(CUDA_FOUND TRUE)
-set(CUDA_VERSION 12.4)
-set(CUDA_TOOLKIT_ROOT_DIR "$env:CUDA_PATH")
-set(CUDA_NVCUVID_LIBRARY "$env:CUDA_PATH/lib/x64/nvcuvid.lib" CACHE FILEPATH "NVCUVID library" FORCE)
-"@
-            $patchedContent | Set-Content $cudaCmake -Encoding utf8
+            Remove-Item $cudaCmake -Force
         }
         
         # Also patch CMakeLists.txt to skip CUDA module
         $cmakeLists = "decord\CMakeLists.txt"
         if (Test-Path $cmakeLists) {
             $content = Get-Content $cmakeLists -Raw
-            # Comment out the CUDA include line
             $content = $content -replace 'include\(cmake/modules/CUDA\.cmake\)', '# include(cmake/modules/CUDA.cmake) # Disabled'
             $content | Set-Content $cmakeLists -Encoding utf8
         }
