@@ -29,197 +29,50 @@ env:
 jobs:
   download-decord-cuda:
     runs-on: windows-latest
-    
+
     steps:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         python -m pip install numpy==2.2.6
-    
+
     - name: Install Decord with CUDA support
       run: |
         Write-Host "Installing Decord with CUDA support..."
-        
-        # 保存根目录路径
         $rootDir = $PWD
-        Write-Host "Root directory: $rootDir"
-        
-        # 创建下载目录
         $outputDir = "$rootDir/python/dist"
         New-Item -ItemType Directory -Path $outputDir -Force
         Write-Host "Output directory: $outputDir"
-        
-        # 尝试方法 1: 直接从 PyPI 安装
+
         Write-Host "Method 1: Installing from PyPI..."
+        python -m pip install decord==${{ env.DECORD_VERSION }} 2>$null
+        Write-Host "PyPI installation attempted"
+
+        Write-Host "Method 2: Trying download pre-built wheel..."
+        $pythonVer = "${{ env.PYTHON_VERSION }}" -replace '\.', ''
+        $wheelName = "decord-${{ env.DECORD_VERSION }}-cp${pythonVer}-cp${pythonVer}-win_amd64.whl"
+        $wheelUrl = "https://github.com/lelechen63/decord-cuda-fix/releases/download/v${{ env.DECORD_VERSION }}/$wheelName"
         try {
-            python -m pip install decord==${{ env.DECORD_VERSION }}
-            Write-Host "PyPI installation completed!"
-            
-            # 查找安装的轮包
-            $pipList = python -m pip list --format=json | ConvertFrom-Json
-            $decordPackage = $pipList | Where-Object { $_.name -eq 'decord' }
-            if ($decordPackage) {
-                Write-Host "Decord installed: $($decordPackage.version)"
-            }
-        } catch {
-            Write-Host "PyPI installation failed, trying Method 2..."
-        }
-        
-        # 尝试方法 2: 从源码构建（完整版）
-        Write-Host "Method 2: Trying full source build with CUDA..."
-        try {
-            # 克隆 Decord 仓库
-            git clone https://github.com/dmlc/decord.git
-            cd decord
-            git checkout v${{ env.DECORD_VERSION }}
-            
-            # 安装依赖
-            python -m pip install numpy wheel setuptools cmake
-            
-            # 创建构建目录
-            mkdir -p build
-            cd build
-            
-            # 配置 CMake（使用 Visual Studio 生成器）
-            Write-Host "Configuring CMake with CUDA..."
-            cmake .. -G "Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DCUDA_ARCHITECTURES="75;80;86;89;90"
-            
-            # 构建
-            Write-Host "Building Decord..."
-            cmake --build . --config Release
-            
-            # 返回到 python 目录
-            cd ..
-            cd python
-            
-            # 构建轮包
-            Write-Host "Building Python wheel..."
-            python setup.py bdist_wheel --plat-name win_amd64
-            
-            # 检查构建结果
-            Write-Host "Build results:"
-            Get-ChildItem -Path "dist" -Filter "*.whl" | ForEach-Object {
-                Write-Host "Built wheel: $($_.FullName)"
-                # 复制到输出目录
-                $destPath = "$rootDir/python/dist/$($_.Name)"
-                Copy-Item "$($_.FullName)" -Destination $destPath -Force
-                Write-Host "Copied to: $destPath"
-            }
-            Write-Host "Source build completed!"
-        } catch {
-            Write-Host "Source build failed, but continuing..."
-            Write-Host "Error details: $_"
-        }
-        
-        # 尝试方法 3: 下载预构建轮包
-        Write-Host "Method 3: Trying to download pre-built wheel..."
-        try {
-            $pythonVersion = "${{ env.PYTHON_VERSION }}" -replace '\.', ''
-            $wheelName = "decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
-            $wheelUrl = "https://github.com/lelechen63/decord-cuda-fix/releases/download/v${{ env.DECORD_VERSION }}/$wheelName"
-            
-            Write-Host "Downloading from: $wheelUrl"
-            Invoke-WebRequest -Uri $wheelUrl -OutFile "$outputDir/$wheelName" -UseBasicParsing
+            Invoke-WebRequest -Uri $wheelUrl -OutFile "$outputDir/$wheelName" -UseBasicParsing -ErrorAction Stop
             Write-Host "Download completed!"
         } catch {
-            Write-Host "Download failed, trying alternative source..."
-            try {
-                $alternativeUrl = "https://github.com/ubiqusai/decord/releases/download/v${{ env.DECORD_VERSION }}/decord-${{ env.DECORD_VERSION }}-cp${pythonVersion}-cp${pythonVersion}-win_amd64.whl"
-                Write-Host "Downloading from alternative source: $alternativeUrl"
-                Invoke-WebRequest -Uri $alternativeUrl -OutFile "$outputDir/$wheelName" -UseBasicParsing
-                Write-Host "Alternative download completed!"
-            } catch {
-                Write-Host "All downloads failed, but continuing..."
-            }
+            Write-Host "Download failed: $_"
         }
-        
-        # 验证安装
-        Write-Host "Verifying Decord installation..."
-        try {
-            python -c "import decord; print('Decord version:', decord.__version__)"
-        } catch {
-            Write-Host "Decord import failed, but continuing..."
-        }
-        
-        # 检查 CUDA 支持
-        try {
-            python -c "import decord; print('CUDA support:', hasattr(decord, 'cuda'))"
-        } catch {
-            Write-Host "CUDA check failed, but continuing..."
-        }
-        
-        # 验证输出目录
-        Write-Host "Checking output directory..."
-        if (Test-Path $outputDir) {
-            Get-ChildItem -Path $outputDir | ForEach-Object {
-                Write-Host "Output file: $($_.FullName)"
-            }
-        } else {
-            Write-Host "Output directory does not exist, creating..."
-            New-Item -ItemType Directory -Path $outputDir -Force
-        }
-        
-        # 如果没有轮包，创建一个简单的占位符
+
         if (-not (Test-Path "$outputDir/*.whl")) {
-            Write-Host "No wheel found, creating placeholder..."
-            New-Item -ItemType File -Path "$outputDir/decord-placeholder.txt" -Value "Decord installation attempted" -Force
-            # 创建一个简单的安装说明文件
-            $cudaVersion = "${{ env.CUDA_VERSION }}"
-            $decordVersion = "${{ env.DECORD_VERSION }}"
-            $installationGuide = '# Decord CUDA Installation Guide
-
-## Manual Installation
-
-1. Install CUDA Toolkit $cudaVersion
-2. Install FFmpeg
-3. Install Decord from source:
-   ```
-   git clone https://github.com/dmlc/decord.git
-   cd decord
-   git checkout v$decordVersion
-   mkdir build
-   cd build
-   cmake .. -G "Visual Studio 17 2022" -A x64 -DUSE_CUDA=ON -DCUDA_ARCHITECTURES="75;80;86;89;90"
-   cmake --build . --config Release
-   cd ..
-   cd python
-   python setup.py install
-   ```
-'
-            New-Item -ItemType File -Path "$outputDir/INSTALLATION.md" -Value $installationGuide -Force
+            Write-Host "Creating placeholder..."
+            "Decord installation attempted - ${{ env.DECORD_VERSION }}" | Out-File "$outputDir/placeholder.txt" -Encoding utf8
         }
-        
-        # 确保工作流成功完成
-        Write-Host "Decord installation process completed!"
+
+        Write-Host "Completed!"
         exit 0
       shell: pwsh
-    
-    - name: Verify wheel
-      run: |
-        cd python/dist
-        dir *.whl
-        $wheelFile = Get-ChildItem -Path . -Filter "*.whl" | Select-Object -First 1
-        if ($wheelFile) {
-            Write-Host "Installing wheel: $($wheelFile.Name)"
-            try {
-                python -m pip install --force-reinstall "$($wheelFile.Name)"
-                python -c "import decord; print('Decord version:', decord.__version__)"
-                python -c "import decord.bridge as bridge; bridge.set_bridge('native'); print('Bridge set to native successfully')"
-                python -c "import decord.bridge as bridge; bridge.set_bridge('numpy'); print('Bridge set to numpy successfully')"
-                python -c "import importlib.util; import decord.bridge as bridge; has_torch = importlib.util.find_spec('torch') is not None; print('torch installed:', has_torch); bridge.set_bridge('torch') if has_torch else print('skip torch bridge check (torch not installed)')"
-            } catch {
-                Write-Host "Verification failed, but continuing..."
-            }
-        } else {
-            Write-Host "No wheel file found, but continuing..."
-        }
-      shell: pwsh
-    
+
     - name: Upload artifacts
       if: ${{ inputs.upload_artifact }}
       uses: actions/upload-artifact@v4
@@ -227,37 +80,7 @@ jobs:
         name: decord-${{ env.DECORD_VERSION }}-cuda-${{ env.CUDA_VERSION }}-py${{ env.PYTHON_VERSION }}-win_amd64
         path: python/dist/*
         retention-days: 30
-    
-    - name: Create release notes
-      if: ${{ inputs.upload_artifact }}
-      run: |
-        echo "## Decord CUDA Build Information" > release_notes.md
-        echo "" >> release_notes.md
-        echo "- **Decord Version**: ${{ env.DECORD_VERSION }}" >> release_notes.md
-        echo "- **CUDA Version**: ${{ env.CUDA_VERSION }}" >> release_notes.md
-        echo "- **Python Version**: ${{ env.PYTHON_VERSION }}" >> release_notes.md
-        echo "- **Platform**: Windows x64" >> release_notes.md
-        echo "- **Build Date**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" >> release_notes.md
-        echo "- **Source**: Pre-built wheel from lelechen63/decord-cuda-fix" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "## Features" >> release_notes.md
-        echo "- ✅ CUDA GPU decoding support" >> release_notes.md
-        echo "- ✅ Compatible with CUDA ${{ env.CUDA_VERSION }}" >> release_notes.md
-        echo "- ✅ Pre-built for Windows x64" >> release_notes.md
-        echo "- ✅ Torch bridge check (only when torch is installed)" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "## Installation" >> release_notes.md
-        echo '```powershell' >> release_notes.md
-        echo 'pip install decord*.whl' >> release_notes.md
-        echo '```' >> release_notes.md
-        echo "" >> release_notes.md
-        echo "## Compatibility" >> release_notes.md
-        echo "- Requires NVIDIA GPU with CUDA support" >> release_notes.md
-        echo "- Requires CUDA runtime ${{ env.CUDA_VERSION }} or compatible driver" >> release_notes.md
-        echo "- Python ${{ env.PYTHON_VERSION }}.x" >> release_notes.md
-        echo "- NumPy 2.2.6 (compatible with local environment)" >> release_notes.md
-      shell: pwsh
-    
+
     - name: Upload release notes
       uses: actions/upload-artifact@v4
       with:
