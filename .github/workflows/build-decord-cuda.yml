@@ -117,9 +117,7 @@ jobs:
           -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x64-windows" `
           -DFFMPEG_DIR="C:\vcpkg\installed\x64-windows" `
           -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe" `
-          -DCUDA_FOUND=TRUE `
-          -DCUDA_VERSION=12.4 `
-          -DNVCUVID_LIBRARY="${{ steps.cuda.outputs.CUDA_PATH }}\lib\x64\nvcuvid.lib"
+          -DCMAKE_CXX_FLAGS="/W0"
       shell: pwsh
 
     - name: Build Decord
