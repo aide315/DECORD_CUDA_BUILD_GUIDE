@@ -84,16 +84,7 @@ jobs:
 
     - name: Patch Decord for CUDA compatibility
       run: |
-        # Patch ndarray.h for std::accumulate fix
-        $ndarrayPath = "decord\include\decord\runtime\ndarray.h"
-        if (Test-Path $ndarrayPath) {
-            $content = Get-Content $ndarrayPath -Raw
-            # Replace the specific pattern: std::accumulate(first, 1, std::multiplies<int64_t>())
-            # with: std::accumulate(first, int64_t(1), std::multiplies<int64_t>())
-            $content = $content -replace 'std::accumulate\(([^,]+),\s*1,\s*std::multiplies<int64_t>\(\)\)', 'std::accumulate($1, int64_t(1), std::multiplies<int64_t>())'
-            $content | Set-Content $ndarrayPath -Encoding utf8
-            Write-Host "Patched ndarray.h"
-        }
+        python -c "import re; f=open(r'decord\include\decord\runtime\ndarray.h','r',encoding='utf-8'); c=re.sub(r'std::accumulate\(([^,]+),\s*1,\s*std::multiplies<int64_t>\(\)\)',r'std::accumulate(\1, int64_t(1), std::multiplies<int64_t>())',f.read()); f.close(); f=open(r'decord\include\decord\runtime\ndarray.h','w',encoding='utf-8'); f.write(c); f.close(); print('Patched')"
         
         # Remove CUDA.cmake to avoid libnvcuvid check
         $cudaCmake = "decord\cmake\modules\CUDA.cmake"
