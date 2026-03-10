@@ -109,8 +109,29 @@ jobs:
         foreach ($file in $audioFiles) {
             if (Test-Path $file) {
                 Remove-Item $file -Force
-                Write-Host "Removed: $file"
             }
+        }
+        
+        # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes
+        $ffmpegHeader = "decord\src\video\ffmpeg\ffmpeg_common.h"
+        if (Test-Path $ffmpegHeader) {
+            $content = Get-Content $ffmpegHeader -Raw
+            # Fix AVBSFContext issues
+            $content = $content -replace 'std::unique_ptr<AVBSFContext>', '// std::unique_ptr<AVBSFContext>'
+            $content = $content -replace 'Deleterp<AVBSFContext>', '// Deleterp<AVBSFContext>'
+            $content = $content -replace 'av_bsf_free', '// av_bsf_free'
+            $content | Set-Content $ffmpegHeader -Encoding utf8
+        }
+        
+        # Patch video_loader.cc for FFmpeg 7.x compatibility
+        $videoLoader = "decord\src\video\video_loader.cc"
+        if (Test-Path $videoLoader) {
+            $content = Get-Content $videoLoader -Raw
+            # Fix channel_layout to ch_layout
+            $content = $content -replace '->channel_layout', '->ch_layout'
+            $content = $content -replace 'codecpar->channel_layout', 'codecpar->ch_layout'
+            $content = $content -replace 'avcodec_parameters_to_context.*?\)', '// avcodec_parameters_to_context removed'
+            $content | Set-Content $videoLoader -Encoding utf8
         }
       shell: pwsh
 
@@ -131,7 +152,7 @@ jobs:
           -DFFMPEG_DIR="C:\vcpkg\installed\x64-windows" `
           -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe" `
           -DCMAKE_CXX_FLAGS="/W0 /wd4244 /wd4267" `
-          -DUSE_FFMPEG=OFF
+          -DBUILD_AUDIO=OFF
       shell: pwsh
 
     - name: Build Decord
