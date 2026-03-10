@@ -100,13 +100,14 @@ jobs:
             $content | Set-Content $cmakeLists -Encoding utf8
         }
         
-        # Remove audio source files to avoid FFmpeg 7.x compatibility issues
-        $audioFiles = @(
+        # Remove audio and video reader source files to avoid FFmpeg 7.x compatibility issues
+        $filesToRemove = @(
             "decord\src\audio\audio_reader.cc",
             "decord\src\audio\audio_interface.cc",
-            "decord\python\decord\audio.py"
+            "decord\python\decord\audio.py",
+            "decord\src\video\video_reader.cc"
         )
-        foreach ($file in $audioFiles) {
+        foreach ($file in $filesToRemove) {
             if (Test-Path $file) {
                 Remove-Item $file -Force
             }
@@ -114,12 +115,6 @@ jobs:
         
         # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes - delete problematic lines
         python -c "f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8');l=f.readlines();f.close();f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8');f.writelines([x for i,x in enumerate(l) if i<185 or i>189]);f.close();print('done')"
-        
-        # Patch video_loader.cc for FFmpeg 7.x compatibility
-        python -c "f=open(r'decord\src\video\video_loader.cc','r',encoding='utf-8');c=f.read();f.close();c=c.replace('->channel_layout','->ch_layout').replace('codecpar->channel_layout','codecpar->ch_layout');f=open(r'decord\src\video\video_loader.cc','w',encoding='utf-8');f.write(c);f.close();print('video_loader patched')"
-        
-        # Patch video_reader.cc for FFmpeg 7.x compatibility
-        python -c "f=open(r'decord\src\video\video_reader.cc','r',encoding='utf-8');c=f.read();f.close();c=c.replace('AVCodecParametersPtr','::AVCodecParameters *').replace('codecpar->channel_layout','codecpar->ch_layout').replace('avcodec_parameters_to_context(','avcodec_parameters_to_context(codec,').replace('av_stream_get_side_data(','av_stream_get_side_data(');f=open(r'decord\src\video\video_reader.cc','w',encoding='utf-8');f.write(c);f.close();print('video_reader patched')"
       shell: pwsh
 
     - name: Configure CMake
