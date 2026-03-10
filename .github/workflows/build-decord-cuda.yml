@@ -70,21 +70,6 @@ jobs:
         C:\vcpkg\vcpkg install ffmpeg:x64-windows
       shell: cmd
 
-    - name: Patch audio_reader.cc for FFmpeg compatibility
-      run: |
-        # Patch audio_reader.cc to fix FFmpeg API changes (FFmpeg 7.x compatibility)
-        $audioFile = "decord\src\audio\audio_reader.cc"
-        if (Test-Path $audioFile) {
-            $content = Get-Content $audioFile -Raw
-            # Replace deprecated APIs
-            $content = $content -replace 'av_get_channel_layout_nb_channels', 'av_channel_layout_nb_channels'
-            $content = $content -replace 'av_get_default_channel_layout', 'av_channel_layout_default'
-            $content = $content -replace 'av_opt_set_channel_layout', 'av_opt_set_channel_layout'
-            $content = $content -replace 'channel_layout', 'ch_layout'
-            $content | Set-Content $audioFile -Encoding utf8
-            Write-Host "Patched audio_reader.cc for FFmpeg 7.x"
-        }
-
     - name: Create FFmpeg symlinks
       run: |
         $libs = @("avformat", "avcodec", "avutil", "avfilter", "swresample", "avdevice")
@@ -132,7 +117,8 @@ jobs:
           -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x64-windows" `
           -DFFMPEG_DIR="C:\vcpkg\installed\x64-windows" `
           -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe" `
-          -DCMAKE_CXX_FLAGS="/W0 /wd4244 /wd4267"
+          -DCMAKE_CXX_FLAGS="/W0 /wd4244 /wd4267" `
+          -DBUILD_AUDIO=OFF
       shell: pwsh
 
     - name: Build Decord
