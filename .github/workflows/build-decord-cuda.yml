@@ -99,6 +99,18 @@ jobs:
             $content = $content -replace 'include\(cmake/modules/CUDA\.cmake\)', '# include(cmake/modules/CUDA.cmake) # Disabled'
             $content | Set-Content $cmakeLists -Encoding utf8
         }
+        
+        # Remove audio source files to avoid FFmpeg 7.x compatibility issues
+        $audioFiles = @(
+            "decord\src\audio\audio_reader.cc",
+            "decord\python\decord\audio.py"
+        )
+        foreach ($file in $audioFiles) {
+            if (Test-Path $file) {
+                Remove-Item $file -Force
+                Write-Host "Removed: $file"
+            }
+        }
       shell: pwsh
 
     - name: Configure CMake
