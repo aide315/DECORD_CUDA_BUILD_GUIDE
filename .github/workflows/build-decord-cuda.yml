@@ -113,10 +113,15 @@ jobs:
             }
         }
         
-        # Also remove audio directory if empty
-        $audioDir = "decord\src\audio"
-        if ((Test-Path $audioDir) -and (Get-ChildItem $audioDir -Force | Measure-Object).Count -eq 0) {
-            Remove-Item $audioDir -Force
+        # Patch ffmpeg_common.h to fix AVBSFContext issue
+        $ffmpegHeader = "decord\src\video\ffmpeg\ffmpeg_common.h"
+        if (Test-Path $ffmpegHeader) {
+            $content = Get-Content $ffmpegHeader -Raw
+            # Comment out the problematic AVBSFContext lines
+            $content = $content -replace 'std::unique_ptr<AVBSFContext> bsf', '// std::unique_ptr<AVBSFContext> bsf'
+            $content = $content -replace 'std::unique_ptr<AVBSFContext>', '// std::unique_ptr<AVBSFContext>'
+            $content | Set-Content $ffmpegHeader -Encoding utf8
+            Write-Host "Patched ffmpeg_common.h"
         }
       shell: pwsh
 
