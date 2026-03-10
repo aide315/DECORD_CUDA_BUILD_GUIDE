@@ -112,9 +112,6 @@ jobs:
                 Write-Host "Removed: $file"
             }
         }
-        
-        # Patch ffmpeg_common.h to fix AVBSFContext issue using Python
-        python -c "import re; f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8'); c=f.read(); c=re.sub(r'.*std::unique_ptr<AVBSFContext>.*\n','',c); c=re.sub(r'.*Deleterp.*\n','',c); c=re.sub(r'.*av_bsf_free.*\n','',c); f.close(); f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8'); f.write(c); f.close(); print('Patched')"
       shell: pwsh
 
     - name: Configure CMake
@@ -134,7 +131,7 @@ jobs:
           -DFFMPEG_DIR="C:\vcpkg\installed\x64-windows" `
           -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe" `
           -DCMAKE_CXX_FLAGS="/W0 /wd4244 /wd4267" `
-          -DBUILD_AUDIO=OFF
+          -DUSE_FFMPEG=OFF
       shell: pwsh
 
     - name: Build Decord
