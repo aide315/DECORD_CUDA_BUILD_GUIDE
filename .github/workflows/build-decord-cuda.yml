@@ -112,16 +112,18 @@ jobs:
             }
         }
         
-        # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes
-        $ffmpegHeader = "decord\src\video\ffmpeg\ffmpeg_common.h"
-        if (Test-Path $ffmpegHeader) {
-            $content = Get-Content $ffmpegHeader -Raw
-            # Fix AVBSFContext issues
-            $content = $content -replace 'std::unique_ptr<AVBSFContext>', '// std::unique_ptr<AVBSFContext>'
-            $content = $content -replace 'Deleterp<AVBSFContext>', '// Deleterp<AVBSFContext>'
-            $content = $content -replace 'av_bsf_free', '// av_bsf_free'
-            $content | Set-Content $ffmpegHeader -Encoding utf8
-        }
+        # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes - delete problematic lines
+        python -c "
+import re
+ffmpegHeader = r'decord\src\video\ffmpeg\ffmpeg_common.h'
+with open(ffmpegHeader, 'r', encoding='utf-8') as f:
+    lines = f.readlines()
+# Remove lines 186-190 (0-indexed: 185-189)
+new_lines = [l for i, l in enumerate(lines) if i < 185 or i > 189]
+with open(ffmpegHeader, 'w', encoding='utf-8') as f:
+    f.writelines(new_lines)
+print('Removed problematic lines')
+"
         
         # Patch video_loader.cc for FFmpeg 7.x compatibility
         $videoLoader = "decord\src\video\video_loader.cc"
