@@ -114,18 +114,7 @@ jobs:
         }
         
         # Patch ffmpeg_common.h to fix AVBSFContext issue using Python
-        python -c "
-import re
-ffmpegHeader = r'decord\src\video\ffmpeg\ffmpeg_common.h'
-with open(ffmpegHeader, 'r', encoding='utf-8') as f:
-    content = f.read()
-# Remove or comment the problematic AVBSFContext lines
-content = re.sub(r'.*std::unique_ptr<AVBSFContext>.*', '// Removed AVBSFContext', content)
-content = re.sub(r'.*av_bsf_free.*', '// Removed av_bsf_free', content)
-with open(ffmpegHeader, 'w', encoding='utf-8') as f:
-    f.write(content)
-print('Patched ffmpeg_common.h')
-"
+        python -c "import re; f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8'); c=re.sub(r'.*std::unique_ptr<AVBSFContext>.*','// Removed AVBSFContext',re.sub(r'.*av_bsf_free.*','// Removed av_bsf_free',f.read())); f.close(); f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8'); f.write(c); f.close(); print('Patched')"
       shell: pwsh
 
     - name: Configure CMake
