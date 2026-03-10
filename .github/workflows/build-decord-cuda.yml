@@ -65,9 +65,9 @@ jobs:
         C:\vcpkg\bootstrap-vcpkg.bat
       shell: cmd
 
-    - name: Install FFmpeg (older version for compatibility)
+    - name: Install FFmpeg
       run: |
-        C:\vcpkg\vcpkg install ffmpeg[avcodec,avformat,avutil,swresample]:x64-windows --overlay-ports=ports/ffmpeg
+        C:\vcpkg\vcpkg install ffmpeg:x64-windows
       shell: cmd
 
     - name: Patch audio_reader.cc for FFmpeg compatibility
