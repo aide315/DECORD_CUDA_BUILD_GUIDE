@@ -103,6 +103,7 @@ jobs:
         # Remove audio source files to avoid FFmpeg 7.x compatibility issues
         $audioFiles = @(
             "decord\src\audio\audio_reader.cc",
+            "decord\src\audio\audio_interface.cc",
             "decord\python\decord\audio.py"
         )
         foreach ($file in $audioFiles) {
@@ -110,6 +111,12 @@ jobs:
                 Remove-Item $file -Force
                 Write-Host "Removed: $file"
             }
+        }
+        
+        # Also remove audio directory if empty
+        $audioDir = "decord\src\audio"
+        if ((Test-Path $audioDir) -and (Get-ChildItem $audioDir -Force | Measure-Object).Count -eq 0) {
+            Remove-Item $audioDir -Force
         }
       shell: pwsh
 
