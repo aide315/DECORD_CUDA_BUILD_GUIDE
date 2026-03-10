@@ -113,17 +113,7 @@ jobs:
         }
         
         # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes - delete problematic lines
-        python -c "
-import re
-ffmpegHeader = r'decord\src\video\ffmpeg\ffmpeg_common.h'
-with open(ffmpegHeader, 'r', encoding='utf-8') as f:
-    lines = f.readlines()
-# Remove lines 186-190 (0-indexed: 185-189)
-new_lines = [l for i, l in enumerate(lines) if i < 185 or i > 189]
-with open(ffmpegHeader, 'w', encoding='utf-8') as f:
-    f.writelines(new_lines)
-print('Removed problematic lines')
-"
+        python -c "f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8');l=f.readlines();f.close();f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8');f.writelines([x for i,x in enumerate(l) if i<185 or i>189]);f.close();print('done')"
         
         # Patch video_loader.cc for FFmpeg 7.x compatibility
         $videoLoader = "decord\src\video\video_loader.cc"
