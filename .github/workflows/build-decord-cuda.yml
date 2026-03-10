@@ -116,15 +116,10 @@ jobs:
         python -c "f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8');l=f.readlines();f.close();f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8');f.writelines([x for i,x in enumerate(l) if i<185 or i>189]);f.close();print('done')"
         
         # Patch video_loader.cc for FFmpeg 7.x compatibility
-        $videoLoader = "decord\src\video\video_loader.cc"
-        if (Test-Path $videoLoader) {
-            $content = Get-Content $videoLoader -Raw
-            # Fix channel_layout to ch_layout
-            $content = $content -replace '->channel_layout', '->ch_layout'
-            $content = $content -replace 'codecpar->channel_layout', 'codecpar->ch_layout'
-            $content = $content -replace 'avcodec_parameters_to_context.*?\)', '// avcodec_parameters_to_context removed'
-            $content | Set-Content $videoLoader -Encoding utf8
-        }
+        python -c "f=open(r'decord\src\video\video_loader.cc','r',encoding='utf-8');c=f.read();f.close();c=c.replace('->channel_layout','->ch_layout').replace('codecpar->channel_layout','codecpar->ch_layout');f=open(r'decord\src\video\video_loader.cc','w',encoding='utf-8');f.write(c);f.close();print('video_loader patched')"
+        
+        # Patch video_reader.cc for FFmpeg 7.x compatibility
+        python -c "f=open(r'decord\src\video\video_reader.cc','r',encoding='utf-8');c=f.read();f.close();c=c.replace('AVCodecParametersPtr','AVCodecParameters *').replace('codecpar->channel_layout','codecpar->ch_layout');f=open(r'decord\src\video\video_reader.cc','w',encoding='utf-8');f.write(c);f.close();print('video_reader patched')"
       shell: pwsh
 
     - name: Configure CMake
