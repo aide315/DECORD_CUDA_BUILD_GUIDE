@@ -113,7 +113,7 @@ jobs:
         }
         
         git checkout decord\src\video\video_reader.cc 2>$null
-        python -c "f=open(r'decord\src\video\video_reader.cc','r',encoding='utf-8');c=f.read();f.close();c=c.replace('ffmpeg::AVCodecParametersPtr','::AVCodecParameters *').replace('codecpar->channel_layout','codecpar->ch_layout').replace('&codec, 0)','const_cast<const AVCodec **>(&codec), 0)').replace('avcodec_parameters_to_context(codec)','avcodec_parameters_to_context(codec, codecpar)');f=open(r'decord\src\video\video_reader.cc','w',encoding='utf-8');f.write(c);f.close();print('done')"
+        python -c "f=open(r'decord\src\video\video_reader.cc','r',encoding='utf-8');c=f.read();f.close();c=c.replace('ffmpeg::AVCodecParametersPtr','::AVCodecParameters *').replace('codecpar->channel_layout','codecpar->ch_layout').replace('&codec, 0)','const_cast<const AVCodec **>(&codec), 0)').replace('avcodec_parameters_to_context(codec)','avcodec_parameters_to_context(codec, codecpar)').replace('av_stream_get_side_data(','// av_stream_get_side_data(');f=open(r'decord\src\video\video_reader.cc','w',encoding='utf-8');f.write(c);f.close();print('done')"
         
         # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes - delete problematic lines
         python -c "f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8');l=f.readlines();f.close();f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8');f.writelines([x for i,x in enumerate(l) if i<185 or i>189]);f.close();print('done')"
