@@ -62,13 +62,20 @@ jobs:
     - name: Install vcpkg
       run: |
         git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-        C:\vcpkg\bootstrap-vcpkg.bat
+        cd C:\vcpkg
+        bootstrap-vcpkg.bat
       shell: cmd
 
-    - name: Install FFmpeg
+    - name: Install FFmpeg 4.x (compatible with Decord)
       run: |
-        C:\vcpkg\vcpkg install ffmpeg:x64-windows
-      shell: cmd
+        # Download FFmpeg 4.4.1 for Windows (compatible with Decord)
+        $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2022-07-31-12-6/ffmpeg-n4.4.1-gpl-shared-4.4.zip"
+        $ffmpegZip = "C:\ffmpeg.zip"
+        Invoke-WebRequest -Uri $ffmpegUrl -OutFile $ffmpegZip -UseBasicParsing
+        Expand-Archive -Path $ffmpegZip -DestinationPath "C:\ffmpeg" -Force
+        # Copy DLLs to a standard location
+        Copy-Item "C:\ffmpeg\ffmpeg-n4.4.1-gpl-shared-4.4\bin\*.dll" "C:\ffmpeg\" -Force -ErrorAction SilentlyContinue
+      shell: pwsh
 
     - name: Create FFmpeg symlinks
       run: |
@@ -100,22 +107,8 @@ jobs:
             $content | Set-Content $cmakeLists -Encoding utf8
         }
         
-        # Remove audio source files to avoid FFmpeg 7.x compatibility issues
-        $filesToRemove = @(
-            "decord\src\audio\audio_reader.cc",
-            "decord\src\audio\audio_interface.cc",
-            "decord\python\decord\audio.py"
-        )
-        foreach ($file in $filesToRemove) {
-            if (Test-Path $file) {
-                Remove-Item $file -Force
-            }
-        }
-        
-        # Completely remove video_reader.cc to avoid FFmpeg 7.x compatibility
-        if (Test-Path "decord\src\video\video_reader.cc") {
-            Remove-Item "decord\src\video\video_reader.cc" -Force
-        }
+        # Restore video_reader.cc (we now use FFmpeg 4.x)
+        git checkout decord\src\video\video_reader.cc 2>$null
         
         # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes - delete problematic lines
         python -c "f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8');l=f.readlines();f.close();f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8');f.writelines([x for i,x in enumerate(l) if i<185 or i>189]);f.close();print('done')"
@@ -134,11 +127,10 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release `
           -DUSE_CUDA=ON `
           -DCUDA_ARCHITECTURES="75;80;86;89;90" `
-          -DCMAKE_PREFIX_PATH="C:\vcpkg\installed\x64-windows" `
-          -DFFMPEG_DIR="C:\vcpkg\installed\x64-windows" `
           -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe" `
           -DCMAKE_CXX_FLAGS="/W0 /wd4244 /wd4267" `
-          -DBUILD_AUDIO=OFF
+          -DBUILD_AUDIO=OFF `
+          -DFFMPEG_ROOT="C:\ffmpeg\ffmpeg-n4.4.1-gpl-shared-4.4"
       shell: pwsh
 
     - name: Build Decord
