@@ -68,13 +68,11 @@ jobs:
 
     - name: Install FFmpeg 4.x (compatible with Decord)
       run: |
-        # Download FFmpeg 4.4.1 for Windows (compatible with Decord)
-        $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2022-07-31-12-6/ffmpeg-n4.4.1-gpl-shared-4.4.zip"
+        # Download FFmpeg 4.4 for Windows (compatible with Decord)
+        $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n4.4-latest-win64-gpl-shared-4.4.zip"
         $ffmpegZip = "C:\ffmpeg.zip"
         Invoke-WebRequest -Uri $ffmpegUrl -OutFile $ffmpegZip -UseBasicParsing
         Expand-Archive -Path $ffmpegZip -DestinationPath "C:\ffmpeg" -Force
-        # Copy DLLs to a standard location
-        Copy-Item "C:\ffmpeg\ffmpeg-n4.4.1-gpl-shared-4.4\bin\*.dll" "C:\ffmpeg\" -Force -ErrorAction SilentlyContinue
       shell: pwsh
 
     - name: Create FFmpeg symlinks
@@ -130,7 +128,7 @@ jobs:
           -DCMAKE_CUDA_COMPILER="${{ steps.cuda.outputs.CUDA_PATH }}\bin\nvcc.exe" `
           -DCMAKE_CXX_FLAGS="/W0 /wd4244 /wd4267" `
           -DBUILD_AUDIO=OFF `
-          -DFFMPEG_ROOT="C:\ffmpeg\ffmpeg-n4.4.1-gpl-shared-4.4"
+          -DFFMPEG_ROOT="C:\ffmpeg\ffmpeg-n4.4-latest-win64-gpl-shared-4.4"
       shell: pwsh
 
     - name: Build Decord
