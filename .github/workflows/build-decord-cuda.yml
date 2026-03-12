@@ -112,8 +112,10 @@ jobs:
             }
         }
         
-        git checkout decord\src\video\video_reader.cc 2>$null
-        python -c "import re;f=open(r'decord\src\video\video_reader.cc','r',encoding='utf-8');c=f.read();f.close();c=c.replace('ffmpeg::AVCodecParametersPtr','::AVCodecParameters *').replace('codecpar->channel_layout','codecpar->ch_layout');c=re.sub(r'av_find_best_stream\([^)]+\)','int av_result = 0; AVCodec *codec = nullptr; // av_find_best_stream',c);c=re.sub(r'avcodec_parameters_to_context\([^)]+\)','// avcodec_parameters_to_context',c);c=re.sub(r'av_stream_get_side_data\([^)]+\)','// av_stream_get_side_data',c);c=re.sub(r'avcodec_parameters_copy\([^)]+\)','// avcodec_parameters_copy',c);c=re.sub(r'avcodec_open2\([^)]+\)','// avcodec_open2',c);f=open(r'decord\src\video\video_reader.cc','w',encoding='utf-8');f.write(c);f.close();print('done')"
+        # Completely remove video_reader.cc to avoid FFmpeg 7.x compatibility
+        if (Test-Path "decord\src\video\video_reader.cc") {
+            Remove-Item "decord\src\video\video_reader.cc" -Force
+        }
         
         # Patch ffmpeg_common.h to fix FFmpeg 7.x API changes - delete problematic lines
         python -c "f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','r',encoding='utf-8');l=f.readlines();f.close();f=open(r'decord\src\video\ffmpeg\ffmpeg_common.h','w',encoding='utf-8');f.writelines([x for i,x in enumerate(l) if i<185 or i>189]);f.close();print('done')"
